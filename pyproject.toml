@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rythusaathi"
+version = "0.1.0"
+description = "Evidence-grounded agricultural advisory backend"
+requires-python = ">=3.11"
+dependencies = [
+    "agent-framework-core==1.24.0",
+    "agent-framework-openai==1.18.0",
+    "openai==3.42.1",
+    "argon2-cffi>=23.1,<26",
+    "cryptography>=43,<47",
+    "keyring>=25,<27",
+]
+
+[project.optional-dependencies]
+test = ["httpx2==2.16.0"]
+pdf = ["pypdf>=5,<7"]
+semantic = ["fastembed>=0.9,<0.10", "huggingface-hub>=0.20"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

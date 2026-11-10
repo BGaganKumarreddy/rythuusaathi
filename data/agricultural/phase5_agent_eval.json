@@ -1,0 +1,104 @@
+[
+  {
+    "case_id": "rice_punjab_flowering_supported",
+    "category": "supported",
+    "query": "Rice plants in Punjab are at heading stage. How should I manage water?",
+    "expected_crop_id": "crop:oryza-sativa",
+    "expected_location_id": "location:state:in-pb",
+    "expected_growth_stage": "heading",
+    "expected_crop_candidates": [],
+    "expected_location_candidates": [],
+    "retrieval_query": "Punjab rice vegetative flowering grain development growth stages temperature",
+    "retrieval_filters": {
+      "crop_id": "crop:oryza-sativa",
+      "geography": "location:state:in-pb",
+      "topic": "growth_stages"
+    },
+    "expected_document_ids": ["pau-kharif-2026:rice-growth-stages"],
+    "mock_intake": {
+      "crops": [{"value": "Rice", "quote": "Rice"}],
+      "locations": [{"value": "Punjab", "quote": "Punjab"}],
+      "growth_stages": [{"value": "heading", "quote": "heading"}],
+      "intents": ["crop_advice"]
+    }
+  },
+  {
+    "case_id": "telangana_rythu_bharosa_supported",
+    "category": "supported",
+    "query": "Can I apply for Rythu Bharosa in Telangana?",
+    "expected_crop_id": null,
+    "expected_location_id": "location:state:in-tg",
+    "expected_growth_stage": null,
+    "expected_crop_candidates": [],
+    "expected_location_candidates": [],
+    "retrieval_query": "Telangana Rythu Bharosa 12000 per acre pattadar ROFR DBT eligibility",
+    "retrieval_filters": {
+      "geography": "location:state:in-tg",
+      "topic": "government_scheme",
+      "source_type": "primary_government",
+      "jurisdiction_level": "state"
+    },
+    "expected_document_ids": ["rythu-bharosa-telangana:go-rt-18-2025"],
+    "mock_intake": {
+      "locations": [{"value": "Telangana", "quote": "Telangana"}],
+      "intents": ["scheme"]
+    }
+  },
+  {
+    "case_id": "unregistered_crop_and_place_unsupported",
+    "category": "unsupported",
+    "query": "What treatment should I use for banana wilt in the unlisted valley of Nallapeta?",
+    "expected_crop_id": null,
+    "expected_location_id": null,
+    "expected_growth_stage": null,
+    "expected_crop_candidates": [],
+    "expected_location_candidates": [],
+    "retrieval_query": "banana cultivation disease control",
+    "retrieval_filters": {"crop_id": "crop:unregistered-banana"},
+    "expected_document_ids": [],
+    "mock_intake": {
+      "crops": [{"value": "banana", "quote": "banana"}],
+      "locations": [{"value": "Nallapeta", "quote": "Nallapeta"}],
+      "intents": ["disease_or_pest", "crop_advice"]
+    }
+  },
+  {
+    "case_id": "multiple_crop_and_state_ambiguous",
+    "category": "ambiguous",
+    "query": "Rice or cotton in Punjab or Haryana has pale leaves. Which crop advice applies?",
+    "expected_crop_id": null,
+    "expected_location_id": null,
+    "expected_growth_stage": null,
+    "expected_crop_candidates": ["crop:oryza-sativa", "crop:gossypium-hirsutum"],
+    "expected_location_candidates": [],
+    "retrieval_query": "rice cotton pale leaves",
+    "retrieval_filters": {"crop_id": "crop:oryza-sativa", "geography": "location:state:in-pb"},
+    "expected_document_ids": [],
+    "mock_intake": {
+      "crops": [
+        {"value": "Rice", "quote": "Rice"},
+        {"value": "cotton", "quote": "cotton"}
+      ],
+      "locations": [
+        {"value": "Punjab", "quote": "Punjab"},
+        {"value": "Haryana", "quote": "Haryana"}
+      ],
+      "observations": [{"label": "pale leaves", "quote": "pale leaves"}],
+      "intents": ["crop_advice"]
+    }
+  },
+  {
+    "case_id": "unavailable_live_weather_unsupported",
+    "category": "unsupported",
+    "query": "What will tomorrow's rainfall be at my farm?",
+    "expected_crop_id": null,
+    "expected_location_id": null,
+    "expected_growth_stage": null,
+    "expected_crop_candidates": [],
+    "expected_location_candidates": [],
+    "retrieval_query": "weather tomorrow rainfall forecast",
+    "retrieval_filters": {"geography": "location:state:in-pb"},
+    "expected_document_ids": [],
+    "mock_intake": {"intents": ["weather"]}
+  }
+]

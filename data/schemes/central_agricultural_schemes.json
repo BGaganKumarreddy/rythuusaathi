@@ -1,0 +1,69 @@
+[
+  {
+    "document_id": "pm-kisan:operational-guidelines-revised",
+    "title": "PM-KISAN Operational Guidelines (Revised)",
+    "content": "The guidelines describe PM-KISAN as a Central Sector Scheme intended to provide income support to landholding farmers' families with cultivable land. The stated benefit is Rs. 6,000 per year, paid by direct benefit transfer to eligible farmers, subject to exclusions. The guidelines define a farmer family as husband, wife and minor children owning cultivable land as recorded by the relevant State or Union Territory. The guidelines list excluded categories, including institutional landholders and specified holders of constitutional or elected offices and government employees. This summary does not enumerate the full exclusion list; consult the official guidelines for eligibility decisions.",
+    "source_id": "pm-kisan-guidelines",
+    "source_identity": "Department of Agriculture and Farmers Welfare, Government of India",
+    "source_reference": "https://pmkisan.gov.in/Documents/RevisedPM-KISANOperationalGuidelines%28English%29.pdf",
+    "publisher": "Department of Agriculture and Farmers Welfare, Government of India",
+    "jurisdiction": [
+      "location:country:in"
+    ],
+    "jurisdiction_level": "central",
+    "official": true,
+    "eligibility_text": "The guidelines describe landholding farmer families owning cultivable land as eligible, subject to scheme exclusions. The definition is husband, wife and minor children, with cultivable land ownership as recorded by the relevant State/UT.",
+    "benefits_text": "Rs. 6,000 per year by direct benefit transfer to eligible farmers, subject to exclusions.",
+    "required_documents_text": "The 2020 guidelines call for State/UT beneficiary records with name, age, gender/category, Aadhaar and bank details, plus self-declaration for exclusions. Alternate identity documents were temporarily permitted through 31 March 2021 for beneficiaries in Assam, Meghalaya and J&K where Aadhaar had not been issued to most residents. This is not a current-season document checklist.",
+    "limitations_text": "The 2020 guidelines make benefits subject to exclusions, rely on State/UT land records and the 1 February 2019 eligibility cut-off with stated exceptions and inheritance cases, and allow recovery and penalties for incorrect self-declaration. This is a historical version; verify current eligibility and process with the official portal and relevant State/UT.",
+    "procedure_text": "Under the 2020 guidelines, State/UT governments identify eligible farmer families from land records, prepare village-level beneficiary data, collect exclusion self-declarations, and upload beneficiary details to the PM-KISAN portal; benefits are then transferred to bank accounts by DBT. Verify current operational steps on the official portal.",
+    "revision": "Revised as on 29 March 2020, as stated in the official PDF.",
+    "revised_at": "2020-03-29",
+    "retrieved_at": "2026-11-06T15:01:55.338Z"
+  },
+  {
+    "document_id": "pmfby:revamped-guidelines-2020",
+    "title": "Pradhan Mantri Fasal Bima Yojana — Revamped Operational Guidelines (2020)",
+    "content": "The official 2020 PMFBY guidelines state that farmers including sharecroppers and tenant farmers growing notified crops in notified areas may be covered if they have an insurable interest in the crop and land. The guidelines require supporting state land records or permitted tenancy/sharecropping documents, and Aadhaar plus a declaration of the crop sown or intended to be sown. The scheme is described as optional for loanee and non-loanee farmers. Eligibility, notified crops, areas, documents and enrollment dates depend on current State/UT notifications; this 2020 guideline is historical and must not replace the current season notification. The source document contains further exclusions and procedures not fully reproduced here.",
+    "source_id": "pmfby-guidelines-2020",
+    "source_identity": "Ministry of Agriculture and Farmers Welfare, Government of India",
+    "source_reference": "https://pmfby.gov.in/pdf/Revamped%20Operational%20Guidelines_17th%20August%202020.pdf",
+    "publisher": "Ministry of Agriculture and Farmers Welfare, Government of India",
+    "jurisdiction": [
+      "location:country:in"
+    ],
+    "jurisdiction_level": "central",
+    "official": true,
+    "eligibility_text": "As stated in the 2020 guidelines: farmers including sharecroppers and tenant farmers growing notified crops in notified areas may be covered if they have insurable interest; prescribed documentary evidence and a crop-sown declaration are required.",
+    "required_documents_text": "The guidelines refer to State land records (RoR/LPC) or State-permitted contract/agreement or other documents for sharecroppers/tenant farmers; Aadhaar number and crop sown/intended-to-be-sown declaration are also stated.",
+    "benefits_text": "Crop insurance coverage for notified risks under applicable scheme terms. This entry does not specify a farmer-specific insured amount or premium.",
+    "limitations_text": "The source is the 2020 revamped guideline. Current State/UT notifications determine notified crops, areas, documents and enrollment windows. Full exclusions and operational procedures are not reproduced in this summary.",
+    "procedure_text": "The 2020 guidelines describe enrollment for loanee and non-loanee farmers and State-defined documents for tenant/sharecropper cases. Current enrollment procedures and dates must be verified from the relevant State/UT notification and official PMFBY portal.",
+    "publication_date": "2020-08-17",
+    "revision": "Revamped Operational Guidelines dated 17 August 2020; historic version",
+    "retrieved_at": "2026-11-06T15:01:56.354Z"
+  },
+  {
+    "document_id": "rythu-bharosa-telangana:go-rt-18-2025",
+    "title": "Telangana Rythu Bharosa Scheme 2025 — Government Order Rt. No. 18",
+    "content": "Government of Telangana Agriculture and Cooperation (Agriculture-II) Department G.O.Rt.No.18, dated 10 January 2025, orders implementation of the Rythu Bharosa Scheme from 26 January 2025. It provides assistance of Rs. 12,000 per acre per year. Eligibility is based on cultivable agricultural land extent recorded in the Bhoobharati (Dharani) portal; non-agricultural land is to be excluded. Pattadars covered under the Record of Forest Rights (ROFR) are also eligible. The order specifies DBT to farmers’ bank accounts and directs Agriculture Department officials to take implementation steps. This summary is a careful English rendering of a scanned Telugu order; details not stated in that order are left unspecified.",
+    "source_id": "telangana-rythu-bharosa-go-rt-18-2025",
+    "source_identity": "Agriculture and Cooperation (Agriculture-II) Department, Government of Telangana",
+    "source_reference": "https://rythubharosa.telangana.gov.in/assets/files/GO%20Rt%20No.%2018_%20Rythu%20Bharosa%20Scheme%202025.pdf",
+    "publisher": "Government of Telangana, Agriculture and Cooperation Department",
+    "jurisdiction": [
+      "location:state:in-tg"
+    ],
+    "jurisdiction_level": "state",
+    "official": true,
+    "eligibility_text": "The GO bases assistance on the extent of cultivable agricultural land recorded in the Bhoobharati (Dharani) portal and directs that non-agricultural land be excluded. It expressly states that ROFR pattadars are also eligible. The order does not state further income, household, tenancy or land-ceiling conditions.",
+    "required_documents_text": "The two-page GO does not specify a farmer-submitted document checklist. It refers to cultivable-land extent recorded in the Bhoobharati (Dharani) portal; this is not stated as a list of documents a farmer must submit.",
+    "benefits_text": "Assistance of Rs. 12,000 per acre per year, as stated in G.O.Rt.No.18. The GO does not state a per-season installment amount or payment calendar.",
+    "limitations_text": "The order ties assistance to recorded cultivable agricultural land and excludes non-agricultural land; ROFR pattadars are expressly included. It does not specify additional exclusions, a maximum acreage/benefit cap, farmer application channel, document checklist, appeal process or per-season payment schedule. Do not infer those details from this order.",
+    "procedure_text": "The GO specifies DBT into farmers’ bank accounts and directs Agriculture Department officials to take necessary implementation steps. It does not describe a farmer-led application route, portal form, office sequence, deadline or required documents. The official Rythu Bharosa GOs and Circulars page lists this GO Rt. No. 18: https://rythubharosa.telangana.gov.in/gos_circulars.aspx",
+    "publication_date": "2025-01-10",
+    "revision": "G.O.Rt.No. 18 dated 10 January 2025; Rythu Bharosa Scheme 2025",
+    "retrieved_at": "2026-11-06T15:16:52.179Z",
+    "section": "G.O.Rt.No.18, Agriculture and Cooperation (Agriculture-II) Department, pages 1–2; official index: https://rythubharosa.telangana.gov.in/gos_circulars.aspx"
+  }
+]

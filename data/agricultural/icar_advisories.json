@@ -1,0 +1,225 @@
+[
+  {
+    "document_id": "icar-kharif-2025:rice-nursery",
+    "title": "ICAR Kharif Agro-Advisories 2025 — Rice nursery and planting",
+    "crop_id": "crop:oryza-sativa",
+    "topic": "sowing_and_planting",
+    "content": "The ICAR Kharif 2025 advisory provides rice nursery-bed preparation, seed-rate guidance that differs by variety type, and seed-treatment information. It directs readers to the advisory for exact rates and local context.",
+    "source_id": "icar-kharif-2025",
+    "source_identity": "Indian Council of Agricultural Research (ICAR)",
+    "source_reference": "https://icar.gov.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+    "publisher": "Indian Council of Agricultural Research",
+    "revision": "May 2025 edition",
+    "section": "Rice advisory — nursery preparation and seed rate"
+  },
+  {
+    "document_id": "icar-kharif-2025:rice-nutrients",
+    "title": "ICAR Kharif Agro-Advisories 2025 — Rice nutrient management",
+    "crop_id": "crop:oryza-sativa",
+    "topic": "fertilizer_management",
+    "content": "The ICAR Kharif 2025 rice advisory presents a nutrient schedule and recommends splitting nitrogen applications across establishment, tillering and panicle development, with field water management before top dressing. Rates are stated per acre; local applicability should be checked against the source and extension advice.",
+    "source_id": "icar-kharif-2025",
+    "source_identity": "Indian Council of Agricultural Research (ICAR)",
+    "source_reference": "https://icar.gov.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+    "publisher": "Indian Council of Agricultural Research",
+    "revision": "May 2025 edition",
+    "section": "Rice advisory — nutrient management"
+  },
+  {
+    "document_id": "icar-kharif-2025:rice-protection",
+    "title": "ICAR Kharif Agro-Advisories 2025 — Rice blast and stem borer",
+    "crop_id": "crop:oryza-sativa",
+    "topic": "pest_management",
+    "content": "The ICAR Kharif 2025 rice advisory discusses management options for blast and stem borer, including chemical examples and application conditions. Check the original advisory, current product labels, registration and local extension guidance before any pesticide use.",
+    "source_id": "icar-kharif-2025",
+    "source_identity": "Indian Council of Agricultural Research (ICAR)",
+    "source_reference": "https://icar.gov.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+    "publisher": "Indian Council of Agricultural Research",
+    "revision": "May 2025 edition",
+    "section": "Rice advisory — blast and stem borer"
+  },
+  {
+    "document_id": "icar-pau-2009:rice-micronutrients-punjab",
+    "title": "PAU guidance reported by ICAR — micronutrient deficiencies in Punjab paddy",
+    "crop_id": "crop:oryza-sativa",
+    "topic": "nutrient_deficiencies",
+    "geographic_applicability": [
+      "location:state:in-pb"
+    ],
+    "content": "An ICAR report quoting Punjab Agricultural University soil scientists describes zinc and iron deficiency symptoms in Punjab paddy. It reports zinc-deficiency symptoms beginning on older leaves as light-yellow interveinal spots that later become yellow-brown and rusty; iron deficiency is described as interveinal chlorosis on young leaves. The report emphasizes soil testing and distinguishes soil zinc application from foliar ferrous-sulphate treatment. These observations are source-reported indicators, not a diagnosis of an individual field.",
+    "source_id": "icar-pau-paddy-micronutrients-2009",
+    "source_identity": "Indian Council of Agricultural Research, reporting Punjab Agricultural University scientists",
+    "source_reference": "https://icar.gov.in/en/node/2755",
+    "publisher": "ICAR (source attribution within article: PAU, Ludhiana)",
+    "publication_date": "2009-05-29",
+    "revision": "Published article; current revision not stated",
+    "section": "Paddy micronutrient deficiency symptoms and management"
+  },
+  {
+    "document_id": "icar-iari-hd3226:agronomy",
+    "title": "ICAR-IARI Wheat HD 3226 — agronomic practices",
+    "crop_id": "crop:triticum-aestivum",
+    "variety_id": "variety:triticum-aestivum:hd-3226",
+    "topic": "crop_cultivation",
+    "geographic_applicability": [
+      "location:state:in-pb"
+    ],
+    "content": "ICAR-IARI lists HD 3226 for irrigated, timely-sown conditions in the North Western Plain Zone, including Punjab. Its variety page gives a 5–25 November sowing window, 100 kg/ha seed rate, and a fertilizer schedule of 150:80:60 kg/ha N:P:K. It specifies one-third nitrogen with full phosphorus and potash at sowing, the remaining nitrogen split after the first and second irrigation, and a first irrigation 21 days after sowing followed by irrigation as needed. Apply only where the stated variety and production conditions match.",
+    "source_id": "icar-iari-hd3226",
+    "source_identity": "ICAR-Indian Agricultural Research Institute, Division of Genetics",
+    "source_reference": "https://www.icar.gov.in/node/12081",
+    "publisher": "ICAR-Indian Agricultural Research Institute",
+    "revision": "Web page; publication/revision date not stated",
+    "section": "Agronomic Practices — irrigated timely sown"
+  },
+  {
+    "document_id": "icar-kharif-2025:maize-cultivation",
+    "title": "ICAR Kharif Agro-Advisories 2025 — maize establishment and nutrient schedule",
+    "crop_id": "crop:zea-mays",
+    "topic": "crop_cultivation",
+    "content": "The ICAR Kharif 2025 advisory lists maize hybrid/composite examples, seed rates by sowing method, seed-treatment options, pre-sowing farmyard-manure guidance, and a fertilizer schedule. The listed fertilizer schedule differs when farmyard manure is applied. Consult the original advisory for exact rates and regional applicability; this summary is not a universal maize recommendation.",
+    "source_id": "icar-kharif-2025",
+    "source_identity": "Indian Council of Agricultural Research (ICAR)",
+    "source_reference": "https://icar.gov.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+    "publisher": "Indian Council of Agricultural Research",
+    "revision": "May 2025 edition",
+    "section": "Maize — establishment and basal nutrients"
+  },
+  {
+    "document_id": "icar-kharif-2025:maize-fall-armyworm",
+    "title": "ICAR Kharif Agro-Advisories 2025 — maize Fall Armyworm",
+    "crop_id": "crop:zea-mays",
+    "topic": "pest_management",
+    "content": "The ICAR Kharif 2025 advisory describes Fall Armyworm as a maize pest and presents monitoring and control options at different crop timings. Product examples and application timing are source-specific. Confirm current pesticide labels, registration, local advisories and crop stage before taking action.",
+    "source_id": "icar-kharif-2025",
+    "source_identity": "Indian Council of Agricultural Research (ICAR)",
+    "source_reference": "https://icar.gov.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+    "publisher": "Indian Council of Agricultural Research",
+    "revision": "May 2025 edition",
+    "section": "Maize — Fall Armyworm management"
+  },
+  {
+    "document_id": "icar-kharif-2025:cotton-pink-bollworm",
+    "title": "ICAR Kharif Agro-Advisories 2025 — cotton sowing and pink bollworm IPM",
+    "crop_id": "crop:gossypium-hirsutum",
+    "topic": "pest_management",
+    "content": "The ICAR Kharif 2025 cotton section connects sowing after monsoon onset or after 1 June with pink bollworm management. It describes integrated measures including crop rotation, intercrops/trap crops and pheromone traps, and advises against plant-growth promoters and pesticides during the first three months while suggesting botanical or biological options. Consult the source and regional experts for full conditions and current applicability.",
+    "source_id": "icar-kharif-2025",
+    "source_identity": "Indian Council of Agricultural Research (ICAR)",
+    "source_reference": "https://icar.gov.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+    "publisher": "Indian Council of Agricultural Research",
+    "revision": "May 2025 edition",
+    "section": "Cotton — pink bollworm integrated pest management"
+  },
+  {
+    "document_id": "icar-kharif-2025:blackgram-establishment",
+    "title": "ICAR Kharif Agro-Advisories 2025 — black gram establishment",
+    "crop_id": "crop:vigna-mungo",
+    "topic": "sowing_and_planting",
+    "content": "The ICAR Kharif 2025 black-gram advisory describes well-drained upland or medium-upland conditions, seed treatment followed by Rhizobium inoculation, and a foliar micronutrient schedule. It also includes weed and disease management items. Regional fit, product registrations and exact rates should be checked against the original advisory; this entry does not imply nationwide applicability.",
+    "source_id": "icar-kharif-2025",
+    "source_identity": "Indian Council of Agricultural Research (ICAR)",
+    "source_reference": "https://icar.gov.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+    "publisher": "Indian Council of Agricultural Research",
+    "revision": "May 2025 edition",
+    "section": "Pulse crops — Black gram"
+  },
+  {
+    "document_id": "icar-rabi-2021:chickpea",
+    "title": "ICAR Rabi Agro-Advisory 2021–22 — chickpea",
+    "crop_id": "crop:cicer-arietinum",
+    "topic": "sowing_and_planting",
+    "content": "The ICAR Rabi 2021–22 advisory gives chickpea cultivar examples and seed treatment and sowing guidance for its stated regional context. It includes spacing, depth, seed-rate and fertilizer details for named cultivars. Those figures are not generalized here because their regional and cultivar conditions must be read in the source; the advisory is not a current all-India package.",
+    "source_id": "icar-rabi-2021-22",
+    "source_identity": "Indian Council of Agricultural Research (ICAR)",
+    "source_reference": "https://www.icar.gov.in/sites/default/files/2022-09/Rabi-Agro-Advisory-2021-22_0.pdf",
+    "publisher": "Indian Council of Agricultural Research",
+    "revision": "2021–22 advisory",
+    "section": "Chickpea"
+  },
+  {
+    "document_id": "pau-kharif-2026:rice-irrigation",
+    "title": "PAU Kharif 2026 — rice irrigation and drainage in Punjab",
+    "crop_id": "crop:oryza-sativa",
+    "growth_stage": "transplant establishment through pre-maturity",
+    "topic": "irrigation",
+    "geographic_applicability": [
+      "location:state:in-pb"
+    ],
+    "content": "For rice in Punjab, PAU advises keeping water standing continuously for only the first two weeks after transplanting to establish seedlings. Afterwards, irrigate two days after ponded water has infiltrated into the soil; the standing-water depth should not exceed 10 cm. Stop irrigation about a fortnight before maturity to facilitate harvesting and timely sowing of the succeeding rabi crop. These are Punjab package recommendations; field and water conditions affect performance.",
+    "source_id": "pau-kharif-2026",
+    "source_identity": "Punjab Agricultural University, Ludhiana",
+    "source_reference": "https://pau.edu/content/ccil/pf/pp_kharif.pdf",
+    "publisher": "Punjab Agricultural University, Ludhiana",
+    "revision": "Package of Practices for Crops of Punjab, Kharif 2026, Volume 43 (March 2026)",
+    "section": "Rice — Irrigation and Drainage (printed pp. 11–12; PDF pp. 19–20)"
+  },
+  {
+    "document_id": "pau-kharif-2026:cotton-soil-preparation",
+    "title": "PAU Kharif 2026 — cotton field preparation and wheat-straw incorporation",
+    "crop_id": "crop:gossypium-hirsutum",
+    "growth_stage": "pre-sowing field preparation",
+    "topic": "soil_preparation",
+    "geographic_applicability": [
+      "location:state:in-pb"
+    ],
+    "content": "For cotton field preparation in Punjab before sowing, PAU recommends incorporating wheat straw left after combine harvesting into the soil using a rotavator or super seeder. The package specifies this practice for its Punjab context and does not establish suitability for every soil or region.",
+    "source_id": "pau-kharif-2026",
+    "source_identity": "Punjab Agricultural University, Ludhiana",
+    "source_reference": "https://pau.edu/content/ccil/pf/pp_kharif.pdf",
+    "publisher": "Punjab Agricultural University, Ludhiana",
+    "revision": "Package of Practices for Crops of Punjab, Kharif 2026, Volume 43 (March 2026)",
+    "section": "New Recommendations — Production Techniques, Cotton (PDF p. 5)"
+  },
+  {
+    "document_id": "pau-kharif-2026:rice-growth-stages",
+    "title": "PAU Kharif 2026 — rice conditions by growth stage in Punjab",
+    "crop_id": "crop:oryza-sativa",
+    "growth_stage": "vegetative, flowering and grain development",
+    "topic": "growth_stages",
+    "geographic_applicability": [
+      "location:state:in-pb"
+    ],
+    "content": "For rice in Punjab, PAU gives stage-specific conditions under which high productivity can be expected. The listed maximum temperatures are 34–40°C for vegetative growth, 33–35°C for flowering and 32–35°C for grain development; corresponding minimum temperatures are 23–28°C, 25–27°C and 20–25°C. Bright-sunshine ranges are 7–11, 6–10 and 7–10 hours per day, respectively. These are conditions described by the Punjab package, not guaranteed outcomes or universal thresholds.",
+    "source_id": "pau-kharif-2026",
+    "source_identity": "Punjab Agricultural University, Ludhiana",
+    "source_reference": "https://pau.edu/content/ccil/pf/pp_kharif.pdf",
+    "publisher": "Punjab Agricultural University, Ludhiana",
+    "revision": "Package of Practices for Crops of Punjab, Kharif 2026, Volume 43 (March 2026)",
+    "section": "Rice — Climatic Requirements (printed p. 2; PDF p. 10)"
+  },
+  {
+    "document_id": "pau-kharif-2026:rice-dwarfing-disease",
+    "title": "PAU Kharif 2026 — rice dwarfing disease identification and prevention",
+    "crop_id": "crop:oryza-sativa",
+    "growth_stage": "nursery and transplanted crop",
+    "topic": "disease_identification",
+    "geographic_applicability": [
+      "location:state:in-pb"
+    ],
+    "content": "The Punjab package identifies rice dwarfing disease as Southern rice black-streaked dwarf virus. Reported signs include severe stunting, short dark-green stiff leaves, shallow roots, poor panicle emergence and mostly unfilled grains; affected plants may be easily uprooted. PAU states no curative treatment is available for viral diseases and recommends weed-free bunds and irrigation channels, regular inspection, removal and deep burial of infected plants, and monitoring for the white-backed planthopper vector. These signs are evidence for inspection, not a field diagnosis; any pesticide response must follow current registration, label and local extension advice.",
+    "source_id": "pau-kharif-2026",
+    "source_identity": "Punjab Agricultural University, Ludhiana",
+    "source_reference": "https://pau.edu/content/ccil/pf/pp_kharif.pdf",
+    "publisher": "Punjab Agricultural University, Ludhiana",
+    "revision": "Package of Practices for Crops of Punjab, Kharif 2026, Volume 43 (March 2026)",
+    "section": "Rice — Diseases, Rice Dwarfing (printed p. 16; PDF p. 24)"
+  },
+  {
+    "document_id": "pau-kharif-2026:rice-harvest-storage",
+    "title": "PAU Kharif 2026 — rice harvest maturity and storage moisture",
+    "crop_id": "crop:oryza-sativa",
+    "growth_stage": "harvest maturity and post-harvest storage",
+    "topic": "harvesting_postharvest",
+    "geographic_applicability": [
+      "location:state:in-pb"
+    ],
+    "content": "For Punjab paddy, PAU advises harvesting when ears are nearly ripe and the straw has turned yellow. Delaying harvest until the crop is dead ripe can cause grain shattering and affect milling quality. The package states that paddy moisture should not exceed 17% at marketing and gives 12% as the optimum moisture content for storage. These are source-specific package figures and conditions.",
+    "source_id": "pau-kharif-2026",
+    "source_identity": "Punjab Agricultural University, Ludhiana",
+    "source_reference": "https://pau.edu/content/ccil/pf/pp_kharif.pdf",
+    "publisher": "Punjab Agricultural University, Ludhiana",
+    "revision": "Package of Practices for Crops of Punjab, Kharif 2026, Volume 43 (March 2026)",
+    "section": "Rice — Harvesting and Threshing; Marketing and Storage (printed p. 12; PDF p. 20)"
+  }
+]

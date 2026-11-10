@@ -1,0 +1,163 @@
+[
+  {
+    "query": "rice nursery planting seed rate sowing",
+    "filters": {
+      "crop_id": "crop:oryza-sativa",
+      "topic": "sowing_and_planting"
+    },
+    "expected_document_ids": [
+      "icar-kharif-2025:rice-nursery"
+    ]
+  },
+  {
+    "query": "rice nitrogen nutrient fertilizer tillering panicle",
+    "filters": {
+      "crop_id": "crop:oryza-sativa",
+      "topic": "fertilizer_management"
+    },
+    "expected_document_ids": [
+      "icar-kharif-2025:rice-nutrients"
+    ]
+  },
+  {
+    "query": "rice blast stem borer pest disease management",
+    "filters": {
+      "crop_id": "crop:oryza-sativa",
+      "topic": "pest_management"
+    },
+    "expected_document_ids": [
+      "icar-kharif-2025:rice-protection"
+    ]
+  },
+  {
+    "query": "wheat HD 3226 Punjab irrigated timely sown first irrigation",
+    "filters": {
+      "crop_id": "crop:triticum-aestivum",
+      "geography": "location:state:in-pb"
+    },
+    "expected_document_ids": [
+      "icar-iari-hd3226:agronomy"
+    ]
+  },
+  {
+    "query": "maize zinc nutrient deficiency symptoms",
+    "filters": {
+      "crop_id": "crop:zea-mays",
+      "topic": "nutrient_deficiencies"
+    },
+    "expected_document_ids": []
+  },
+  {
+    "query": "cotton pink bollworm pheromone trap pest management",
+    "filters": {
+      "crop_id": "crop:gossypium-hirsutum",
+      "topic": "pest_management"
+    },
+    "expected_document_ids": [
+      "icar-kharif-2025:cotton-pink-bollworm"
+    ]
+  },
+  {
+    "query": "PM KISAN landholding farmer eligibility benefits",
+    "filters": {
+      "topic": "government_scheme",
+      "source_type": "primary_government",
+      "jurisdiction_level": "central"
+    },
+    "expected_document_ids": [
+      "pm-kisan:operational-guidelines-revised"
+    ]
+  },
+  {
+    "query": "Punjab state scheme farmer eligibility application",
+    "filters": {
+      "geography": "location:state:in-pb",
+      "topic": "government_scheme",
+      "jurisdiction_level": "state"
+    },
+    "expected_document_ids": []
+  },
+  {
+    "query": "banana cultivation disease control",
+    "filters": {
+      "crop_id": "crop:unregistered-banana"
+    },
+    "expected_document_ids": []
+  },
+  {
+    "query": "Punjab state solar pump grant eligibility documents",
+    "filters": {
+      "geography": "location:state:in-pb",
+      "topic": "government_scheme",
+      "jurisdiction_level": "state"
+    },
+    "expected_document_ids": []
+  },
+  {
+    "query": "Punjab rice irrigation after transplanting standing water infiltration maturity",
+    "filters": {
+      "crop_id": "crop:oryza-sativa",
+      "geography": "location:state:in-pb",
+      "topic": "irrigation"
+    },
+    "expected_document_ids": [
+      "pau-kharif-2026:rice-irrigation"
+    ]
+  },
+  {
+    "query": "Punjab cotton soil field preparation incorporate wheat straw rotavator",
+    "filters": {
+      "crop_id": "crop:gossypium-hirsutum",
+      "geography": "location:state:in-pb",
+      "topic": "soil_preparation"
+    },
+    "expected_document_ids": [
+      "pau-kharif-2026:cotton-soil-preparation"
+    ]
+  },
+  {
+    "query": "Punjab rice vegetative flowering grain development growth stages temperature",
+    "filters": {
+      "crop_id": "crop:oryza-sativa",
+      "geography": "location:state:in-pb",
+      "topic": "growth_stages"
+    },
+    "expected_document_ids": [
+      "pau-kharif-2026:rice-growth-stages"
+    ]
+  },
+  {
+    "query": "Punjab rice dwarfing virus symptoms short dark green stiff leaves shallow roots",
+    "filters": {
+      "crop_id": "crop:oryza-sativa",
+      "geography": "location:state:in-pb",
+      "topic": "disease_identification"
+    },
+    "expected_document_ids": [
+      "pau-kharif-2026:rice-dwarfing-disease"
+    ]
+  },
+  {
+    "query": "Punjab paddy harvest nearly ripe yellow straw shattering storage moisture",
+    "filters": {
+      "crop_id": "crop:oryza-sativa",
+      "geography": "location:state:in-pb",
+      "topic": "harvesting_postharvest"
+    },
+    "expected_document_ids": [
+      "pau-kharif-2026:rice-harvest-storage"
+    ]
+  },
+  {
+    "query": "Telangana Rythu Bharosa 12000 per acre pattadar ROFR DBT eligibility",
+    "filters": {
+      "geography": "location:state:in-tg",
+      "topic": "government_scheme",
+      "source_type": "primary_government",
+      "jurisdiction_level": "state"
+    },
+    "expected_document_ids": [
+      "rythu-bharosa-telangana:go-rt-18-2025"
+    ]
+  }
+]
