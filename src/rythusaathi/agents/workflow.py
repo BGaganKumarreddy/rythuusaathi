@@ -862,7 +862,11 @@ def _crop_candidates(text: str) -> dict[str, set[str]]:
     for crop in CROP_REGISTRY.records:
         for name in crop.common_names + crop.regional_names:
             candidates.append((crop.crop_id, name.value))
-    return _mention_candidates(text, candidates)
+    matched: dict[str, set[str]] = {}
+    for identifier, label in candidates:
+        if _has_positive_phrase(text, label):
+            matched.setdefault(identifier, set()).add(label)
+    return matched
 
 
 def _location_candidates(text: str) -> dict[str, set[str]]:
@@ -896,7 +900,13 @@ def _select_query_values(request: FarmerRequest,
                                     dict[str, tuple[str, ...]]]:
     text = request.query
     ambiguous: dict[str, tuple[str, ...]] = {}
+    day = request.as_of or date.today()
     crop_query = request.crop_query
+    if crop_query:
+        if crop_query.startswith("crop:"):
+            if not CROP_REGISTRY.get(crop_query, day):
+                crop_query = crop_query.removeprefix("crop:").strip()
+
     if crop_query is None:
         crops = _crop_candidates(text)
         if len(crops) == 1:
@@ -905,8 +915,25 @@ def _select_query_values(request: FarmerRequest,
             crop_query = crop.common_names[0].value if crop else None
         elif len(crops) > 1:
             ambiguous["crop"] = tuple(sorted(crops))
+    else:
+        resolved_crop = CROP_REGISTRY.resolve(crop_query, on_date=day)
+        if resolved_crop.status is ResolutionStatus.NOT_FOUND:
+            crops = _crop_candidates(text)
+            if len(crops) == 1:
+                crop_id = next(iter(crops))
+                crop = CROP_REGISTRY.get(crop_id)
+                crop_query = crop.common_names[0].value if crop else crop_query
+            elif len(crops) > 1:
+                ambiguous["crop"] = tuple(sorted(crops))
 
     location_query = request.location_query
+    if location_query:
+        if location_query.startswith("loc:"):
+            location_query = location_query.removeprefix("loc:").strip()
+        elif location_query.startswith("location:"):
+            if not LOCATION_REGISTRY.get(location_query, day):
+                location_query = location_query.removeprefix("location:").strip()
+
     if location_query is None:
         locations = _most_specific_locations(set(_location_candidates(text)))
         if len(locations) == 1:
@@ -915,12 +942,22 @@ def _select_query_values(request: FarmerRequest,
             location_query = location.name if location else None
         elif len(locations) > 1:
             ambiguous["location"] = tuple(sorted(locations))
+    else:
+        resolved_loc = LOCATION_REGISTRY.resolve(location_query, on_date=day)
+        if resolved_loc.status is ResolutionStatus.NOT_FOUND:
+            locations = _most_specific_locations(set(_location_candidates(text)))
+            if len(locations) == 1:
+                location_id = next(iter(locations))
+                location = LOCATION_REGISTRY.get(location_id)
+                location_query = location.name if location else location_query
+            elif len(locations) > 1:
+                ambiguous["location"] = tuple(sorted(locations))
 
     variety_query = request.variety_query
     growth_stage_query = request.growth_stage_query
-    crop_resolution = CROP_REGISTRY.resolve(crop_query, on_date=request.as_of or date.today())
+    crop_resolution = CROP_REGISTRY.resolve(crop_query, on_date=day)
     if crop_resolution.status is ResolutionStatus.MATCHED:
-        crop = CROP_REGISTRY.get(crop_resolution.canonical_id or "", request.as_of)
+        crop = CROP_REGISTRY.get(crop_resolution.canonical_id or "", day)
         if crop:
             if variety_query is None:
                 varieties = _mention_candidates(text, [
@@ -946,6 +983,21 @@ def _select_query_values(request: FarmerRequest,
                     )
                 elif len(stages) > 1:
                     ambiguous["growth_stage"] = tuple(sorted(stages))
+    else:
+        if growth_stage_query is None:
+            all_stage_candidates = [
+                (stage.stage_id, name.value)
+                for c in CROP_REGISTRY.records for stage in c.growth_stages for name in stage.names
+            ]
+            stages = _mention_candidates(text, all_stage_candidates)
+            if len(stages) == 1:
+                growth_stage_query = next(
+                    name.value for c in CROP_REGISTRY.records for stage in c.growth_stages
+                    if stage.stage_id in stages for name in stage.names
+                    if _has_phrase(text, name.value)
+                )
+            elif len(stages) > 1:
+                ambiguous["growth_stage"] = tuple(sorted(stages))
 
     # LLM mentions are accepted only when their quote occurs in the original
     # query and the candidate resolves in the existing canonical registry.
@@ -1070,15 +1122,19 @@ def _intents_and_observations(query: str) -> tuple[tuple[FarmerIntent, ...], tup
 
     observations: list[str] = []
     signals = (
-        (("turning yellow", "yellow leaves", "yellowing", "yellow leaves"), "yellowing leaves"),
+        (("brown leaf spots", "brown leaf spot", "brown spots on leaves", "brown spots"), "brown leaf spots"),
+        (("leaf spots", "spots on leaves", "spots on the leaves", "leaf spot"), "spots on leaves"),
+        (("turning yellow", "yellow leaves", "yellowing", "yellow leaves", "yellowing leaves"), "yellowing leaves"),
         (("wilting", "wilted"), "wilting"),
-        (("leaf spots", "spots on leaves", "spots on the leaves"), "spots on leaves"),
         (("holes in leaves", "holes in the leaves"), "holes in leaves"),
         (("stunted growth", "stunted plants"), "stunted growth"),
     )
     for phrases, label in signals:
-        if any(_has_positive_phrase(query, phrase) for phrase in phrases) and label not in observations:
-            observations.append(label)
+        if any(_has_positive_phrase(query, phrase) for phrase in phrases):
+            if label == "spots on leaves" and "brown leaf spots" in observations:
+                continue
+            if label not in observations:
+                observations.append(label)
     return tuple(intents), tuple(observations)
 
 

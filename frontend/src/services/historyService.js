@@ -8,3 +8,4 @@ export const historyService = {
     return res.data;
   },
 };
+

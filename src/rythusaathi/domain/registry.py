@@ -221,6 +221,10 @@ class CropRegistry:
             return Resolution(status=ResolutionStatus.UNSUPPORTED,
                               message="crop registry version is not effective on this date")
         term = _normalize(query)
+        if term.startswith("crop:") and term not in self._by_id:
+            candidate = term.removeprefix("crop:").strip()
+            if any(_normalize(c.scientific_name) == candidate or any(_normalize(n.value) == candidate for n in c.common_names + c.regional_names) for c in self.records):
+                term = candidate
         exact = [crop for crop in self.records if (
             term == _normalize(crop.crop_id) or any(
             (language is None or name.language.casefold() == language.casefold())
@@ -365,6 +369,14 @@ class LocationRegistry:
             return Resolution(status=ResolutionStatus.UNSUPPORTED,
                               message="location registry version is not effective on this date")
         term = _normalize(query)
+        if term.startswith("loc:") and term not in self._by_id:
+            candidate = term.removeprefix("loc:").strip()
+            if any(_normalize(record.name) == candidate or any(_normalize(a.value) == candidate for a in record.aliases) for record in self.records):
+                term = candidate
+        elif term.startswith("location:") and term not in self._by_id:
+            candidate = term.removeprefix("location:").strip()
+            if any(_normalize(record.name) == candidate or any(_normalize(a.value) == candidate for a in record.aliases) for record in self.records):
+                term = candidate
         all_exact = [record for record in self.records if term in {
             _normalize(record.location_id), _normalize(record.name),
             *(_normalize(alias.value) for alias in record.aliases),

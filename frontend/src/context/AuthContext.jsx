@@ -106,9 +106,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const isAdmin = !!(user?.roles && (user.roles.includes('tenant_admin') || user.roles.includes('admin')));
+
   const value = {
     token,
     user,
+    isAdmin,
     isAuthenticated: !!token && !!user,
     isLoading,
     login,
@@ -127,3 +130,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

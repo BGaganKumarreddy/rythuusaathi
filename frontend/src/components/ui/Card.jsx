@@ -44,3 +44,4 @@ export const Card = ({
     </div>
   );
 };
+

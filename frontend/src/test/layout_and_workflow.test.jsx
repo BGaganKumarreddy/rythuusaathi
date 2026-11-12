@@ -68,14 +68,10 @@ describe('Layout Navigation and Advisory Workflow Tests', () => {
 
     expect(screen.getAllByText(/RythuSaathi/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Dashboard/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/New Consultation/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/My Consultations/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Agent Activity/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Weather/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Mandi Prices/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Govt Schemes/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Risk Alerts/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/BYOK Vault/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Settings/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Farm Profile/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Account Settings/i).length).toBeGreaterThan(0);
   });
 
   it('2. TopHeader renders title, status and user identity badge', () => {
@@ -106,14 +102,14 @@ describe('Layout Navigation and Advisory Workflow Tests', () => {
     );
 
     // Provide query shorter than 3 chars
-    const queryInput = screen.getByLabelText(/Agronomic Question \/ Observation/i);
+    const queryInput = screen.getByLabelText(/Describe your problem or question/i);
     fireEvent.change(queryInput, { target: { value: 'ab' } });
 
-    const submitBtn = screen.getByRole('button', { name: /Execute 7-Agent Consultation/i });
+    const submitBtn = screen.getByRole('button', { name: /Get Agricultural Advice/i });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Please provide a specific agronomic inquiry/i)).toBeInTheDocument();
+      expect(screen.getByText(/Please describe your farming question/i)).toBeInTheDocument();
     });
     expect(advisoryService.createAdvisory).not.toHaveBeenCalled();
   });
@@ -137,12 +133,12 @@ describe('Layout Navigation and Advisory Workflow Tests', () => {
       </BrowserRouter>
     );
 
-    const queryInput = screen.getByLabelText(/Agronomic Question \/ Observation/i);
+    const queryInput = screen.getByLabelText(/Describe your problem or question/i);
     fireEvent.change(queryInput, {
       target: { value: 'Cotton leaves turning red in Adilabad' },
     });
 
-    const submitBtn = screen.getByRole('button', { name: /Execute 7-Agent Consultation/i });
+    const submitBtn = screen.getByRole('button', { name: /Get Agricultural Advice/i });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {

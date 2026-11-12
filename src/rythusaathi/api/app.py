@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .exceptions import register_exception_handlers
 from .routes import (
+    admin_router,
     advisory_router,
     auth_router,
     configuration_router,
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(advisory_router, prefix=api_v1_prefix)
     app.include_router(configuration_router, prefix=api_v1_prefix)
     app.include_router(history_router, prefix=api_v1_prefix)
+    app.include_router(admin_router, prefix=api_v1_prefix)
 
     @app.get("/api/v1/health", tags=["Health"], summary="System health check")
     async def health_check() -> dict[str, str | int]:

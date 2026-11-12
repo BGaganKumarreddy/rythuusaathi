@@ -16,3 +16,4 @@ export const configurationService = {
     return res.data;
   },
 };
+

@@ -19,3 +19,4 @@ export const credentialService = {
     return res.data;
   },
 };
+

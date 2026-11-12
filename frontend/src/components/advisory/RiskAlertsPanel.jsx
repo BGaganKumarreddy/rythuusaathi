@@ -175,3 +175,4 @@ export const RiskAlertsPanel = ({
     </div>
   );
 };
+

@@ -294,3 +294,4 @@ export const HistoryPage = () => {
     </div>
   );
 };
+

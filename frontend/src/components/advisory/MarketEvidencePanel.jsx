@@ -75,3 +75,4 @@ export const MarketEvidencePanel = ({ marketEvidence = [] }) => {
     </div>
   );
 };
+

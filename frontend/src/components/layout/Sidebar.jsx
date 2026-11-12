@@ -14,12 +14,16 @@ import {
   Sprout,
   X,
   Cpu,
+  UserCheck,
+  ShieldCheck,
+  Users,
+  Server,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/Badge';
 
 export const Sidebar = ({ isOpen, onClose }) => {
-  const { user, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -27,17 +31,19 @@ export const Sidebar = ({ isOpen, onClose }) => {
     navigate('/login');
   };
 
-  const navItems = [
+  const primaryNavItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/advisories/new', label: 'New Advisory', icon: Sparkles, highlight: true },
-    { to: '/advisories', label: 'My Consultations', icon: FileText },
-    { to: '/agent-activity', label: 'Agent Activity', icon: Cpu },
-    { to: '/weather', label: 'Weather', icon: CloudSun },
-    { to: '/market', label: 'Mandi Prices', icon: TrendingUp },
-    { to: '/schemes', label: 'Govt Schemes', icon: Landmark },
-    { to: '/risk-alerts', label: 'Risk Alerts', icon: AlertTriangle },
-    { to: '/credentials', label: 'BYOK Vault', icon: KeyRound },
-    { to: '/settings', label: 'Settings', icon: Settings },
+    { to: '/advisories/new', label: 'New Consultation', icon: Sparkles, highlight: true },
+    { to: '/history', label: 'My Consultations', icon: FileText },
+    { to: '/farm-profile', label: 'Farm Profile', icon: UserCheck },
+    { to: '/settings', label: 'Account Settings', icon: Settings },
+  ];
+
+  const adminNavItems = [
+    { to: '/admin', label: 'Admin Dashboard', icon: ShieldCheck },
+    { to: '/admin/users', label: 'User Management', icon: Users },
+    { to: '/admin/agents', label: 'Agent Activity & Telemetry', icon: Cpu },
+    { to: '/admin/system', label: 'System Configuration', icon: Server },
   ];
 
   const sidebarContent = (
@@ -81,27 +87,65 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
       {/* Navigation List */}
       <nav className="flex-1 px-4 py-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              onClick={onClose}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-[#347A50] text-white shadow-xs'
-                    : 'text-[#DCE9DC]/80 hover:bg-[#23543b]/60 hover:text-white'
-                }`
-              }
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              <span>{item.label}</span>
-            </NavLink>
-          );
-        })}
+        <div className="space-y-1">
+          {primaryNavItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/'}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#347A50] text-white shadow-xs'
+                      : 'text-[#DCE9DC]/80 hover:bg-[#23543b]/60 hover:text-white'
+                  }`
+                }
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+
+        {/* Administration Section: strictly hidden from farmer members */}
+        {isAdmin && (
+          <div className="pt-4 mt-4 border-t border-[#23543b]">
+            <div className="px-3 pb-2 flex items-center justify-between">
+              <span className="text-[11px] font-bold text-[#DCE9DC]/60 uppercase tracking-wider">
+                Administration
+              </span>
+              <span className="text-[10px] bg-amber-900/60 text-amber-300 font-semibold px-1.5 py-0.5 rounded">
+                Admin Only
+              </span>
+            </div>
+            <div className="space-y-1">
+              {adminNavItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-[#347A50] text-white shadow-xs'
+                          : 'text-[#DCE9DC]/80 hover:bg-[#23543b]/60 hover:text-white'
+                      }`
+                    }
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* User / Tenant Info Bottom Card */}
@@ -154,3 +198,4 @@ export const Sidebar = ({ isOpen, onClose }) => {
     </>
   );
 };
+

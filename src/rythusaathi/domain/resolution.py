@@ -215,11 +215,24 @@ class ContextResolver:
             result = Resolution(status=ResolutionStatus.MISSING,
                                message="growth stage selection is missing")
             return result, ContextFact[str].unknown()
-        if crop_record is None:
-            result = Resolution(status=ResolutionStatus.UNSUPPORTED,
-                               message="crop must be resolved before its growth stage")
-            return result, ContextFact[str].unavailable(result.message)
         term = _normalize(query)
+        if crop_record is None:
+            matching_stages = []
+            for crop in self._crops.records:
+                for stage in crop.growth_stages:
+                    if any(term == _normalize(name.value) for name in stage.names):
+                        matching_stages.append(stage.stage_id)
+            matching_unique = sorted(set(matching_stages))
+            if len(matching_unique) == 1:
+                stage_id = matching_unique[0]
+                result = Resolution(status=ResolutionStatus.MATCHED, canonical_id=stage_id)
+                return result, ContextFact[str].supplied(stage_id)
+            elif len(matching_unique) > 1:
+                result = Resolution(status=ResolutionStatus.AMBIGUOUS, candidate_ids=tuple(matching_unique))
+                return result, ContextFact[str].unavailable("growth stage is ambiguous across crops")
+            result = Resolution(status=ResolutionStatus.UNSUPPORTED,
+                               message="growth stage could not be resolved without a confirmed crop")
+            return result, ContextFact[str].unavailable(result.message)
         matches = [stage for stage in crop_record.growth_stages
                    if any(term == _normalize(name.value) for name in stage.names)]
         if len(matches) == 1:

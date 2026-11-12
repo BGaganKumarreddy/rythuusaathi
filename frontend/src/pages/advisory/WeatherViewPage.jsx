@@ -83,3 +83,4 @@ export const WeatherViewPage = () => {
     </div>
   );
 };
+

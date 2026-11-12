@@ -21,11 +21,33 @@ RICE = CropRecord(
     common_names=(NameVariant(value="rice"), NameVariant(value="paddy")),
     regional_names=(NameVariant(value="వరి", language="te", region_id="location:state:in-tg"),),
     scientific_name="Oryza sativa L.", category=CropCategory.CEREAL,
-    varieties=(VarietyRecord(
-        variety_id="variety:oryza-sativa:pusa-basmati-1121",
-        names=(NameVariant(value="Pusa Basmati 1121"),),
-        source_reference="https://icar.org.in/en/crop-science/basmati-rice-varieties",
-    ),),
+    varieties=(
+        VarietyRecord(
+            variety_id="variety:oryza-sativa:pusa-basmati-1121",
+            names=(NameVariant(value="Pusa Basmati 1121"),),
+            source_reference="https://icar.org.in/en/crop-science/basmati-rice-varieties",
+        ),
+        VarietyRecord(
+            variety_id="variety:oryza-sativa:bpt-5204",
+            names=(NameVariant(value="BPT 5204"), NameVariant(value="Samba Mahsuri")),
+            source_reference="https://icar-iirr.org/research/varieties",
+        ),
+        VarietyRecord(
+            variety_id="variety:oryza-sativa:mtu-1010",
+            names=(NameVariant(value="MTU 1010"), NameVariant(value="Cottondora Sannalu")),
+            source_reference="https://icar-iirr.org/research/varieties",
+        ),
+        VarietyRecord(
+            variety_id="variety:oryza-sativa:swarna",
+            names=(NameVariant(value="Swarna"), NameVariant(value="MTU 7029")),
+            source_reference="https://icar-iirr.org/research/varieties",
+        ),
+        VarietyRecord(
+            variety_id="variety:oryza-sativa:ir-64",
+            names=(NameVariant(value="IR 64"),),
+            source_reference="https://icar-iirr.org/research/varieties",
+        ),
+    ),
     growth_stages=(
         GrowthStageRecord(stage_id="seedling", names=(NameVariant(value="seedling"),), order=10,
                           source_reference="https://www.icar.org.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf"),

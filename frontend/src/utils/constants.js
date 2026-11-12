@@ -52,3 +52,4 @@ export const SEVERITY_COLORS = {
     dot: 'bg-emerald-500',
   },
 };
+

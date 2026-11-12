@@ -56,6 +56,7 @@ export const EmptyState = ({
 export const Alert = ({
   type = 'info',
   title,
+  message,
   children,
   className = '',
 }) => {
@@ -96,8 +97,9 @@ export const Alert = ({
       {current.icon}
       <div className="flex-1 text-sm leading-relaxed">
         {title && <h4 className={`font-semibold mb-0.5 ${current.text}`}>{title}</h4>}
-        <div className={current.text}>{children}</div>
+        <div className={current.text}>{children || message}</div>
       </div>
     </div>
   );
 };
+

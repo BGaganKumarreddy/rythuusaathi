@@ -81,3 +81,4 @@ export const SchemesViewPage = () => {
     </div>
   );
 };
+

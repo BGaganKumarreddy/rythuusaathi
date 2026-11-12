@@ -31,3 +31,4 @@ export const advisoryService = {
     return res.data;
   },
 };
+

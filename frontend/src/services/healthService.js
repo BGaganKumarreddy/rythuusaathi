@@ -6,3 +6,4 @@ export const healthService = {
     return res.data;
   },
 };
+

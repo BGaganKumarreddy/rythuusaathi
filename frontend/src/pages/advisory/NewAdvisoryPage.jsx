@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
   Sprout,
   MapPin,
-  Calendar,
   Layers,
-  Cpu,
-  KeyRound,
-  AlertCircle,
+  Calendar,
+  Send,
   HelpCircle,
+  ChevronDown,
+  ChevronUp,
   CheckCircle2,
-  Clock,
-  ArrowRight,
+  AlertCircle,
+  FileQuestion,
+  Compass,
 } from 'lucide-react';
 import { useConfig } from '../../context/ConfigContext';
 import { useToast } from '../../context/ToastContext';
 import { advisoryService } from '../../services/advisoryService';
-import { credentialService } from '../../services/credentialService';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input, Select, Textarea } from '../../components/ui/Input';
@@ -25,76 +25,58 @@ import { Badge } from '../../components/ui/Badge';
 import { Alert } from '../../components/ui/Feedback';
 
 export const NewAdvisoryPage = () => {
-  const { crops, locations, providers, isLoading: configLoading } = useConfig();
+  const { crops, locations } = useConfig();
   const toast = useToast();
   const navigate = useNavigate();
 
-  // Form State
+  // Natural language inquiry (Primary farmer input)
   const [query, setQuery] = useState('');
+
+  // Optional contextual helpers
+  const [showOptionalDetails, setShowOptionalDetails] = useState(false);
   const [selectedCrop, setSelectedCrop] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('');
+  const [customCrop, setCustomCrop] = useState('');
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [customLocation, setCustomLocation] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
   const [selectedVariety, setSelectedVariety] = useState('');
-  const [selectedMode, setSelectedMode] = useState('deterministic');
-  const [selectedCredentialId, setSelectedCredentialId] = useState('');
+  const [customVariety, setCustomVariety] = useState('');
 
-  // Credentials State
-  const [credentials, setCredentials] = useState([]);
-  const [credsLoading, setCredsLoading] = useState(false);
-
-  // Submission State
+  // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState(0);
   const [error, setError] = useState('');
 
-  // Sample prompt chips
+  // Plain-language sample prompts for farmers
   const samplePrompts = [
     {
-      label: 'Flowering Cotton Pests',
-      query: 'My cotton crop is flowering in Adilabad. What pests should I monitor and what are current mandi prices?',
-      crop: 'crop:cotton',
-      location: 'loc:adilabad',
-      stage: 'flowering',
-    },
-    {
-      label: 'Rice Tillering Disease',
+      label: 'Rice Brown Leaf Spots',
       query: 'Rice leaves are showing brown leaf spots during tillering stage. What safe organic controls are available?',
-      crop: 'crop:rice',
-      location: 'loc:punjab',
-      stage: 'tillering',
+      description: 'Tillering rice with fungal symptom observations',
     },
     {
-      label: 'APMC Market Trends',
-      query: 'What are the current modal prices and trading range for cotton in Adilabad APMC?',
-      crop: 'crop:cotton',
-      location: 'loc:adilabad',
-      stage: 'harvesting',
+      label: 'Wheat Yellowing Leaves',
+      query: 'I am growing wheat. Some leaves are turning yellow.',
+      description: 'Nutrient or moisture stress inquiry',
+    },
+    {
+      label: 'Punjab Govt Schemes',
+      query: 'My field is in Ludhiana, Punjab. What government schemes can I apply for?',
+      description: 'Jurisdiction-specific subsidy and insurance query',
+    },
+    {
+      label: 'Adilabad Cotton Mandi Price',
+      query: 'What is the current market price for cotton in Adilabad APMC?',
+      description: 'Daily modal price and trade range inquiry',
     },
   ];
 
-  // Fetch BYOK credentials when external LLM mode is chosen
-  useEffect(() => {
-    if (selectedMode !== 'deterministic') {
-      setCredsLoading(true);
-      credentialService
-        .listCredentials()
-        .then((data) => {
-          const matching = (data.items || []).filter(
-            (c) => c.provider_id.toLowerCase() === selectedMode.toLowerCase() && c.state === 'active'
-          );
-          setCredentials(matching);
-          if (matching.length > 0) {
-            setSelectedCredentialId(matching[0].credential_id);
-          } else {
-            setSelectedCredentialId('');
-          }
-        })
-        .catch(() => setCredentials([]))
-        .finally(() => setCredsLoading(false));
-    } else {
-      setSelectedCredentialId('');
-    }
-  }, [selectedMode]);
+  // Derived location scopes (never mix country with districts)
+  const states = locations.filter((l) => l.level === 'state');
+  const availableDistricts = locations.filter(
+    (l) => l.level === 'district' && (!selectedState || l.parent_id === selectedState)
+  );
 
   // Derived growth stages & varieties for selected crop
   const currentCropObj = crops.find((c) => c.crop_id === selectedCrop);
@@ -103,20 +85,13 @@ export const NewAdvisoryPage = () => {
 
   const handleApplySample = (sample) => {
     setQuery(sample.query);
-    if (sample.crop) setSelectedCrop(sample.crop);
-    if (sample.location) setSelectedLocation(sample.location);
-    if (sample.stage) setSelectedStage(sample.stage);
+    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!query.trim() || query.trim().length < 3) {
-      setError('Please provide a specific agronomic inquiry (at least 3 characters)');
-      return;
-    }
-
-    if (selectedMode !== 'deterministic' && !selectedCredentialId && credentials.length === 0) {
-      setError(`Active BYOK credential required for ${selectedMode}. Please enroll a key in the BYOK vault.`);
+      setError('Please describe your farming question or observation in plain words (at least 3 characters).');
       return;
     }
 
@@ -124,33 +99,59 @@ export const NewAdvisoryPage = () => {
     setIsSubmitting(true);
     setSubmitStep(1);
 
-    // Simulated progress steps for the 7-agent workflow visualization while waiting
     const stepTimer = setInterval(() => {
       setSubmitStep((prev) => (prev < 6 ? prev + 1 : prev));
-    }, 1800);
+    }, 1200);
 
     try {
-      const cropName = currentCropObj?.common_names?.[0] || selectedCrop;
-      const locObj = locations.find((l) => l.location_id === selectedLocation);
-      const locName = locObj?.display_name || selectedLocation;
+      // Determine crop value
+      let finalCrop = undefined;
+      if (selectedCrop === '__other__') {
+        finalCrop = customCrop.trim() || undefined;
+      } else if (selectedCrop) {
+        finalCrop = currentCropObj?.common_names?.[0] || selectedCrop;
+      }
+
+      // Determine location value (hierarchical resolution)
+      let finalLocation = undefined;
+      if (selectedDistrict === '__other__' || selectedState === '__other__') {
+        finalLocation = customLocation.trim() || undefined;
+      } else if (selectedDistrict) {
+        const distObj = locations.find((l) => l.location_id === selectedDistrict);
+        finalLocation = distObj?.display_name || selectedDistrict;
+      } else if (selectedState) {
+        const stateObj = locations.find((l) => l.location_id === selectedState);
+        finalLocation = stateObj?.display_name || selectedState;
+      }
+
+      // Determine variety value
+      let finalVariety = undefined;
+      if (selectedVariety === '__other__') {
+        finalVariety = customVariety.trim() || undefined;
+      } else if (selectedVariety) {
+        const varObj = availableVarieties.find((v) => v.variety_id === selectedVariety);
+        finalVariety = varObj?.names?.[0] || selectedVariety;
+      }
+
+      // Determine growth stage
+      const finalStage = selectedStage || undefined;
 
       const advisory = await advisoryService.createAdvisory({
         query: query.trim(),
-        crop: cropName || undefined,
-        location: locName || undefined,
-        growth_stage: selectedStage || undefined,
-        variety: selectedVariety || undefined,
-        mode: selectedMode,
-        credential_id: selectedCredentialId || undefined,
+        crop: finalCrop,
+        location: finalLocation,
+        growth_stage: finalStage,
+        variety: finalVariety,
+        mode: 'deterministic',
       });
 
       clearInterval(stepTimer);
-      toast.success('Seven-agent consultation completed!', 'Advisory Ready');
+      toast.success('Consultation completed successfully!', 'Advisory Ready');
       navigate(`/advisories/${encodeURIComponent(advisory.advisory_id)}`);
     } catch (err) {
       clearInterval(stepTimer);
       setIsSubmitting(false);
-      setError(err?.message || 'Seven-agent advisory workflow failed. Check parameters and try again.');
+      setError(err?.message || 'Unable to complete advisory workflow. Please verify details and try again.');
       toast.error(err?.message || 'Workflow execution error');
     }
   };
@@ -160,260 +161,333 @@ export const NewAdvisoryPage = () => {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <Badge variant="active" size="sm">Guided Consultation</Badge>
-          <span className="text-xs text-[#78837B]">• 7-Agent Orchestrated Workflow</span>
+          <Badge variant="active" size="sm">Farmer Consultation</Badge>
+          <span className="text-xs text-[#78837B]">• Natural-Language Advisory</span>
         </div>
         <h1 className="text-2xl font-extrabold text-[#202B24] tracking-tight">
-          New Agricultural Advisory Inquiry
+          Ask Your Farming Question
         </h1>
         <p className="text-sm text-[#78837B] mt-1">
-          Submit your field query. The Intake, Weather, Crop, Market, Scheme, and Risk Alert agents will analyze your context before the Coordinator synthesizes recommendations.
+          Describe what you see in your field, ask about crop symptoms, weather, mandi prices, or government schemes in ordinary language.
         </p>
       </div>
 
-      {error && (
-        <Alert type="error" title="Submission Error">
-          {error}
-        </Alert>
-      )}
-
-      {/* Suggested Prompt Chips */}
-      <div className="space-y-2">
-        <span className="text-xs font-semibold text-[#78837B]">Sample Inquiries:</span>
-        <div className="flex flex-wrap gap-2">
-          {samplePrompts.map((s, idx) => (
+      {/* Quick Example Chips */}
+      <div>
+        <p className="text-xs font-bold text-[#78837B] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <FileQuestion className="w-3.5 h-3.5 text-[#347A50]" />
+          <span>Common Example Questions (Click to Fill)</span>
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {samplePrompts.map((p, idx) => (
             <button
               key={idx}
               type="button"
-              onClick={() => handleApplySample(s)}
-              className="text-xs px-3 py-1.5 rounded-xl border border-[#E6EAE4] bg-white hover:border-[#347A50] hover:bg-[#F7F8F4] text-[#202B24] transition-colors flex items-center gap-1.5"
+              onClick={() => handleApplySample(p)}
+              className="text-left p-3 rounded-xl bg-white border border-[#E6EAE4] hover:border-[#347A50] hover:bg-[#F7F8F4] transition-all group"
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#347A50]" />
-              <span>{s.label}</span>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-xs text-[#202B24] group-hover:text-[#183D2B]">
+                  {p.label}
+                </span>
+                <span className="text-[10px] text-[#347A50] font-bold group-hover:translate-x-0.5 transition-transform">
+                  Use &rarr;
+                </span>
+              </div>
+              <p className="text-xs text-[#78837B] line-clamp-1 mt-1">{p.query}</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Form Card */}
-      <Card padding="p-6 sm:p-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* 1. Farmer Question */}
-          <div>
+      {error && <Alert type="error" title="Consultation Notice">{error}</Alert>}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Large Natural Language Text Area */}
+        <Card>
+          <div className="space-y-3">
             <Textarea
-              label="Agronomic Question / Observation"
+              label="Describe your problem or question"
               id="query"
-              rows={4}
-              placeholder="Describe your field observations, symptoms, weather concerns, or market pricing questions..."
+              rows={5}
+              placeholder="e.g. Rice leaves are showing brown leaf spots during tillering stage. What safe organic controls are available? (Or describe your location, mandi pricing questions, or crop symptoms...)"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              helperText="Be specific about leaf coloration, pest sightings, or weather patterns for precise grounding."
+              helperText="You can mention your crop, growth stage, location, or symptoms directly in your question. Our Intake agent will automatically extract them."
               required
             />
           </div>
+        </Card>
 
-          {/* 2. Crop & Location Context (Grouped) */}
-          <div className="pt-4 border-t border-[#E6EAE4]">
-            <h3 className="text-sm font-bold text-[#202B24] mb-4 flex items-center gap-2">
-              <Sprout className="w-4 h-4 text-[#347A50]" />
-              <span>Crop & Geographic Context</span>
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select
-                label="Crop"
-                id="crop"
-                icon={Sprout}
-                value={selectedCrop}
-                onChange={(e) => {
-                  setSelectedCrop(e.target.value);
-                  setSelectedStage('');
-                  setSelectedVariety('');
-                }}
-                placeholder="Select Crop"
-                options={crops.map((c) => ({
-                  value: c.crop_id,
-                  label: `${c.common_names?.[0]} (${c.scientific_name})`,
-                }))}
-              />
-
-              <Select
-                label="Location / District"
-                id="location"
-                icon={MapPin}
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                placeholder="Select District / Region"
-                options={locations.map((l) => ({
-                  value: l.location_id,
-                  label: l.display_name,
-                }))}
-              />
-
-              <Select
-                label="Growth Stage"
-                id="growth_stage"
-                icon={Layers}
-                value={selectedStage}
-                onChange={(e) => setSelectedStage(e.target.value)}
-                placeholder={availableStages.length > 0 ? 'Select Growth Stage' : 'Select a crop first'}
-                disabled={availableStages.length === 0}
-                options={availableStages.map((s) => ({
-                  value: s.stage_id,
-                  label: s.names?.[0] || s.stage_id,
-                }))}
-              />
-
-              <Select
-                label="Crop Variety"
-                id="variety"
-                icon={Calendar}
-                value={selectedVariety}
-                onChange={(e) => setSelectedVariety(e.target.value)}
-                placeholder={availableVarieties.length > 0 ? 'Select Variety' : 'Select a crop first'}
-                disabled={availableVarieties.length === 0}
-                options={availableVarieties.map((v) => ({
-                  value: v.variety_id,
-                  label: v.names?.[0] || v.variety_id,
-                }))}
-              />
+        {/* Collapsible Optional Field Details Accordion */}
+        <div className="rounded-2xl border border-[#E6EAE4] bg-white overflow-hidden shadow-xs">
+          <button
+            type="button"
+            onClick={() => setShowOptionalDetails((prev) => !prev)}
+            className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-[#F7F8F4] transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <Compass className="w-4 h-4 text-[#347A50]" />
+              <div>
+                <span className="text-sm font-bold text-[#202B24]">
+                  Specify or Correct Field Details
+                </span>
+                <span className="text-xs text-[#78837B] ml-2 font-normal">
+                  (Optional — Leave blank to let the system extract from your question)
+                </span>
+              </div>
             </div>
-          </div>
+            {showOptionalDetails ? (
+              <ChevronUp className="w-4 h-4 text-[#78837B]" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-[#78837B]" />
+            )}
+          </button>
 
-          {/* 3. Inference Engine & BYOK Provider Selection */}
-          <div className="pt-4 border-t border-[#E6EAE4]">
-            <h3 className="text-sm font-bold text-[#202B24] mb-4 flex items-center gap-2">
-              <Cpu className="w-4 h-4 text-[#347A50]" />
-              <span>Inference Engine & Security Mode</span>
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select
-                label="Execution Mode"
-                id="mode"
-                value={selectedMode}
-                onChange={(e) => setSelectedMode(e.target.value)}
-                placeholder=""
-                options={[
-                  { value: 'deterministic', label: 'Deterministic Baseline (Local, Zero-API-Cost)' },
-                  { value: 'cerebras', label: 'Cerebras Cloud WSE-3 (30,000 TPM limit)' },
-                  { value: 'gemini', label: 'Google Gemini 2.5 Flash / Pro (BYOK)' },
-                  { value: 'groq', label: 'Groq Cloud LPU (7,200 TPM limit)' },
-                ]}
-              />
-
-              {selectedMode !== 'deterministic' && (
+          {showOptionalDetails && (
+            <div className="px-5 pb-6 pt-2 border-t border-[#E6EAE4] space-y-5 bg-[#FDFEFC]">
+              {/* Crop & Custom Crop */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Select
-                    label="Stored BYOK Credential"
-                    id="credential_id"
-                    icon={KeyRound}
-                    value={selectedCredentialId}
-                    onChange={(e) => setSelectedCredentialId(e.target.value)}
-                    placeholder={
-                      credsLoading
-                        ? 'Loading active credentials...'
-                        : credentials.length > 0
-                        ? 'Select Active Credential'
-                        : 'No active key found'
-                    }
-                    options={credentials.map((c) => ({
-                      value: c.credential_id,
-                      label: `${c.credential_id.slice(0, 14)}... (Gen ${c.generation})`,
-                    }))}
+                    label="Crop (Optional)"
+                    id="crop"
+                    icon={Sprout}
+                    value={selectedCrop}
+                    onChange={(e) => {
+                      setSelectedCrop(e.target.value);
+                      setSelectedStage('');
+                      setSelectedVariety('');
+                    }}
+                    placeholder="Not specified (Auto-extract)"
+                    options={[
+                      ...crops.map((c) => ({
+                        value: c.crop_id,
+                        label: `${c.common_names?.[0]} (${c.scientific_name})`,
+                      })),
+                      { value: '__other__', label: '+ Other / Not listed crop' },
+                    ]}
                   />
-
-                  {credentials.length === 0 && !credsLoading && (
-                    <p className="mt-1 text-xs text-amber-700">
-                      No active key for {selectedMode}.{' '}
-                      <Link to="/credentials" className="underline font-semibold">
-                        Add key in BYOK Vault
-                      </Link>
-                    </p>
+                  {selectedCrop === '__other__' && (
+                    <div className="mt-2">
+                      <Input
+                        label="Enter Unlisted Crop Name"
+                        id="customCrop"
+                        placeholder="e.g. Mustard, Sugarcane, Sorghum"
+                        value={customCrop}
+                        onChange={(e) => setCustomCrop(e.target.value)}
+                        helperText="Unregistered crops are accepted safely for general advisory"
+                      />
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Submit Action */}
-          <div className="pt-4 border-t border-[#E6EAE4] flex flex-col sm:flex-row items-center justify-between gap-4">
-            <span className="text-xs text-[#78837B]">
-              Responses are verified by 7 specialized agents with zero-knowledge encryption.
-            </span>
+                {/* Growth Stage */}
+                <div>
+                  <Select
+                    label="Growth Stage (Optional)"
+                    id="growth_stage"
+                    icon={Layers}
+                    value={selectedStage}
+                    onChange={(e) => setSelectedStage(e.target.value)}
+                    placeholder="Not specified (Optional)"
+                    options={
+                      availableStages.length > 0
+                        ? availableStages.map((s) => ({
+                            value: s.stage_id,
+                            label: s.names?.[0] || s.stage_id,
+                          }))
+                        : [
+                            { value: 'seedling', label: 'Seedling / Early vegetative' },
+                            { value: 'vegetative', label: 'Vegetative / Tillering' },
+                            { value: 'flowering', label: 'Flowering / Bloom' },
+                            { value: 'grain-filling', label: 'Grain Filling / Pod Formation' },
+                            { value: 'maturity', label: 'Maturity / Harvesting' },
+                          ]
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Hierarchical Location: State -> District */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#E6EAE4]">
+                <div>
+                  <Select
+                    label="State (Optional)"
+                    id="state"
+                    icon={MapPin}
+                    value={selectedState}
+                    onChange={(e) => {
+                      setSelectedState(e.target.value);
+                      setSelectedDistrict('');
+                    }}
+                    placeholder="Select State"
+                    options={[
+                      ...states.map((s) => ({
+                        value: s.location_id,
+                        label: s.display_name,
+                      })),
+                      { value: '__other__', label: '+ Other State' },
+                    ]}
+                  />
+                </div>
+
+                <div>
+                  <Select
+                    label="District (Optional)"
+                    id="district"
+                    icon={MapPin}
+                    value={selectedDistrict}
+                    onChange={(e) => setSelectedDistrict(e.target.value)}
+                    placeholder={
+                      selectedState === '__other__'
+                        ? 'Select Other'
+                        : availableDistricts.length > 0
+                        ? 'Select District'
+                        : 'Select state first'
+                    }
+                    disabled={!selectedState}
+                    options={[
+                      ...availableDistricts.map((d) => ({
+                        value: d.location_id,
+                        label: d.display_name,
+                      })),
+                      { value: '__other__', label: '+ Other District / Village' },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {(selectedState === '__other__' || selectedDistrict === '__other__') && (
+                <div>
+                  <Input
+                    label="Enter Custom Location / District / Village"
+                    id="customLocation"
+                    placeholder="e.g. Warangal, Telangana or Ludhiana rural"
+                    value={customLocation}
+                    onChange={(e) => setCustomLocation(e.target.value)}
+                    helperText="Custom locations will be evaluated against available state schemes and regional data"
+                  />
+                </div>
+              )}
+
+              {/* Crop Variety */}
+              <div className="pt-2 border-t border-[#E6EAE4]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Select
+                      label="Crop Variety (Optional)"
+                      id="variety"
+                      icon={Calendar}
+                      value={selectedVariety}
+                      onChange={(e) => setSelectedVariety(e.target.value)}
+                      placeholder="Not specified (Optional)"
+                      options={[
+                        ...availableVarieties.map((v) => ({
+                          value: v.variety_id,
+                          label: v.names?.[0] || v.variety_id,
+                        })),
+                        { value: '__other__', label: '+ Other / Custom Variety' },
+                      ]}
+                    />
+                    <p className="mt-1 text-[11px] text-[#78837B]">
+                      Showing registered ICAR starter varieties. You can also specify a custom variety.
+                    </p>
+                  </div>
+
+                  {selectedVariety === '__other__' && (
+                    <div>
+                      <Input
+                        label="Enter Custom Variety Name"
+                        id="customVariety"
+                        placeholder="e.g. Sona Masoori, HMT, Local Desi"
+                        value={customVariety}
+                        onChange={(e) => setCustomVariety(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Submit Action Card */}
+        <Card>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-xs text-[#78837B] leading-relaxed">
+              <span className="font-semibold text-[#202B24]">Privacy & Evidence Grounding:</span>{' '}
+              All recommendations are grounded against official ICAR advisories, Open-Meteo observations, and Agmarknet mandi records.
+            </div>
 
             <Button
               type="submit"
               variant="primary"
               size="lg"
-              isLoading={isSubmitting}
-              icon={Sparkles}
-              className="w-full sm:w-auto"
+              disabled={isSubmitting || !query.trim()}
+              icon={Send}
             >
-              Execute 7-Agent Consultation
+              {isSubmitting ? 'Analyzing with 7 Agents...' : 'Get Agricultural Advice'}
             </Button>
           </div>
-        </form>
-      </Card>
+        </Card>
+      </form>
 
-      {/* Real-time Workflow Execution Progress Overlay */}
+      {/* Seven-Agent Execution Overlay */}
       {isSubmitting && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-[#E6EAE4] p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 animate-in zoom-in-95">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#183D2B] text-white flex items-center justify-center animate-pulse">
-                <Sparkles className="w-5 h-5 text-[#DCE9DC]" />
+        <div className="fixed inset-0 z-50 bg-[#183D2B]/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-[#E6EAE4] space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 rounded-2xl bg-[#DCE9DC] text-[#183D2B] mx-auto flex items-center justify-center">
+                <Sprout className="w-8 h-8 animate-pulse text-[#347A50]" />
               </div>
-              <div>
-                <h3 className="font-bold text-lg text-[#202B24]">
-                  Executing Seven-Agent Advisory
-                </h3>
-                <p className="text-xs text-[#78837B]">
-                  Microsoft Agent Framework graph reasoning in progress...
-                </p>
-              </div>
+              <h3 className="text-lg font-bold text-[#202B24]">
+                Orchestrating 7 Agricultural Agents
+              </h3>
+              <p className="text-xs text-[#78837B]">
+                Synthesizing weather forecasts, agronomy advisories, and mandi prices...
+              </p>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {[
-                '1. Intake Agent: Normalizing agricultural query and entities...',
-                '2. Weather Agent: Fetching Open-Meteo meteorological feed...',
-                '3. Crop Knowledge Agent: Retrieving curated ICAR advisories...',
-                '4. Market Agent: Cross-referencing APMC mandi commodity trade...',
-                '5. Scheme Agent: Checking central and state welfare benefits...',
-                '6. Risk Alert Agent: Screening for active weather & pest hazards...',
-                '7. Coordinator Agent: Synthesizing multi-agent consensus...',
-              ].map((stepText, idx) => {
-                const isPassed = submitStep > idx;
+                { name: 'Intake Agent', label: 'Extracting crop, stage, and symptoms from query' },
+                { name: 'Weather Agent', label: 'Retrieving Open-Meteo agrometeorological data' },
+                { name: 'Crop Health Agent', label: 'Matching ICAR agronomic research guidelines' },
+                { name: 'Mandi Market Agent', label: 'Scanning Agmarknet modal APMC rates' },
+                { name: 'Government Scheme Agent', label: 'Evaluating PMFBY and state eligibility' },
+                { name: 'Risk Alert Agent', label: 'Screening active weather & pest thresholds' },
+                { name: 'Coordinator Agent', label: 'Synthesizing evidence into farmer next steps' },
+              ].map((step, idx) => {
+                const isDone = submitStep > idx;
                 const isCurrent = submitStep === idx;
-
                 return (
-                  <div
-                    key={idx}
-                    className={`flex items-center gap-3 p-2.5 rounded-xl text-xs transition-all ${
-                      isCurrent
-                        ? 'bg-[#DCE9DC] text-[#183D2B] font-semibold border border-[#c2e4cf]'
-                        : isPassed
-                        ? 'bg-emerald-50 text-emerald-800'
-                        : 'text-slate-400'
-                    }`}
-                  >
-                    {isPassed ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : isCurrent ? (
-                      <Clock className="w-4 h-4 text-[#347A50] animate-spin shrink-0" />
-                    ) : (
-                      <span className="w-4 h-4 rounded-full border border-slate-300 shrink-0" />
-                    )}
-                    <span className="truncate">{stepText}</span>
+                  <div key={idx} className="flex items-center gap-3 text-xs">
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 transition-colors ${
+                        isDone
+                          ? 'bg-[#347A50] text-white'
+                          : isCurrent
+                          ? 'bg-amber-100 text-amber-800 border-2 border-amber-500 animate-spin'
+                          : 'bg-[#F7F8F4] text-[#78837B] border border-[#E6EAE4]'
+                      }`}
+                    >
+                      {isDone ? <CheckCircle2 className="w-3.5 h-3.5" /> : idx + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`font-semibold ${
+                          isDone || isCurrent ? 'text-[#202B24]' : 'text-[#78837B]'
+                        }`}
+                      >
+                        {step.name}
+                      </p>
+                      <p className="text-[11px] text-[#78837B] truncate">{step.label}</p>
+                    </div>
                   </div>
                 );
               })}
             </div>
-
-            <p className="text-center text-[11px] text-[#78837B]">
-              Please wait while the advisory board evaluates evidence without hallucination.
-            </p>
           </div>
         </div>
       )}

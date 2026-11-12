@@ -30,7 +30,7 @@ from ..knowledge import (
     load_schemes,
 )
 from ..local_auth import LocalAuthentication
-from ..security import VerifiedIdentity
+from ..security import IdentityRole, VerifiedIdentity
 from .exceptions import APIError
 from .history import AdvisoryHistoryStore
 
@@ -230,4 +230,18 @@ def get_current_identity(
             code="invalid_session",
             message="Invalid or expired session token",
         )
+
+
+def require_admin_role(
+    identity: Annotated[VerifiedIdentity, Depends(get_current_identity)],
+) -> VerifiedIdentity:
+    """Ensure the authenticated identity possesses the tenant_admin role."""
+    if IdentityRole.TENANT_ADMIN not in identity.roles:
+        raise APIError(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="admin_privilege_required",
+            message="Administrative role required to access this resource",
+        )
+    return identity
+
 
