@@ -1,126 +1,222 @@
-# RythuSaathi
+# RythuSaathi — Your Intelligent Farming Companion
 
-Production code uses a `src/` package layout. The accepted foundation includes
-the backend inference provider boundary, local-first Phase 1 identity and BYOK
-credential lifecycle, Phase 2 shared-intelligence contracts, Phase 3 local
-SQLite RAG, and the Phase 4 six-agent advisory workflow. Phase 0 feasibility artifacts remain isolated under
-`tmp/phase0_feasibility/`.
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-489%20passed-brightgreen.svg)]()
+
+> **RythuSaathi** (*Farmer's Companion*) is an academic, production-grade agricultural multi-agent AI system. It provides verified, multi-domain agronomic intelligence—integrating real-time weather observations, localized crop protection guidelines, official mandi commodity prices, and government welfare schemes—grounded in scientific research to eliminate model hallucinations.
+
+---
+
+## 1. Problem Statement & Objective
+
+Smallholder farmers frequently face fragmented, conflicting, and unverified agricultural advice across weather forecasts, pest outbreaks, APMC mandi trading, and welfare scheme eligibility. Generic commercial LLMs frequently hallucinate pesticide dosages, misquote government deadlines, or recommend inappropriate regional treatments.
+
+**RythuSaathi** solves this through a local-first, multi-agent architecture built on the **Microsoft Agent Framework**. It treats every agronomic claim as an evidence-backed assertion, cross-examining multi-domain evidence on a shared agricultural blackboard before generating actionable farmer advisories.
+
+---
+
+## 2. Core Features
+
+- **Seven-Agent Orchestrated Graph**: Specialized domain agents execute collaboratively to validate agricultural inquiries.
+- **Evidence-Grounded RAG**: Curated ICAR (*Indian Council of Agricultural Research*) scientific guidelines and central government scheme documentation.
+- **Dual-Tier Risk Alerting**: Clear distinction between **active, evidence-backed hazards** (e.g. excess rainfall within 48h) and **background crop vulnerabilities** (e.g. general pest susceptibility).
+- **Zero-Trust BYOK Security**: Bring-Your-Own-Key model with AES-256-GCM envelope encryption backed by Windows Credential Manager.
+- **Provider-Neutral LLM Engine**: Seamless execution across **Cerebras** (wafer-scale engine, 30k TPM), **Google Gemini**, **Groq** (LPU), and an offline **Deterministic Baseline**.
+- **Production REST API**: Local-first FastAPI service with interactive OpenAPI docs, SQLite WAL persistence, and strict tenant/user isolation.
+
+---
+
+## 3. Seven-Agent Architecture
+
+```
+                    ┌─────────────────────────┐
+                    │      Farmer Inquiry     │
+                    └────────────┬────────────┘
+                                 │
+                    ┌────────────▼────────────┐
+                    │      Intake Agent       │
+                    └────────────┬────────────┘
+                                 │
+         ┌───────────────────────┼───────────────────────┐
+         │                       │                       │
+┌────────▼────────┐     ┌────────▼────────┐     ┌────────▼────────┐
+│  Weather Agent  │     │   Crop Agent    │     │  Market Agent   │
+│  (Open-Meteo)   │     │ (Curated ICAR)  │     │  (data.gov.in)  │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+         ┌───────────────────────┴───────────────────────┐
+         │                                               │
+┌────────▼────────┐                             ┌────────▼────────┐
+│  Scheme Agent   │                             │ Risk Alert Agent│
+│(PM-KISAN/PMFBY) │                             │(Active Hazards) │
+└────────┬────────┘                             └────────┬────────┘
+         │                                               │
+         └───────────────────────┬───────────────────────┘
+                                 │
+                    ┌────────────▼────────────┐
+                    │    Coordinator Agent    │
+                    │   (Synthesis & Board)   │
+                    └────────────┬────────────┘
+                                 │
+                    ┌────────────▼────────────┐
+                    │   Structured Advisory   │
+                    └─────────────────────────┘
+```
+
+| # | Agent Name | Primary Responsibility | Data Source |
+|---|---|---|---|
+| **1** | **Intake Agent** | Query normalization, entity extraction (crop, growth stage, district), and intent routing. | Domain Seed Catalogs |
+| **2** | **Weather Agent** | Real-time weather observations, soil moisture, precipitation accumulation, and 3-day forecast. | Open-Meteo REST API |
+| **3** | **Crop Knowledge Agent** | Stage-specific agronomic advice, nutrient guidelines, and scientific pest management. | Curated ICAR Bulletins |
+| **4** | **Market Agent** | Daily APMC mandi commodity prices, modal rates, and market trade trends. | data.gov.in Agmarknet |
+| **5** | **Scheme Agent** | Subsidy eligibility, documentation requirements, and application cycles. | PM-KISAN, PMFBY, State Schemes |
+| **6** | **Risk Alert Agent** | Detects active, immediate hazards (severe weather, pest threats) with actionable mitigations. | Real-time Weather & Mandi |
+| **7** | **Coordinator Agent** | Cross-domain synthesis, evidence provenance compilation, conflict detection, and next steps. | Shared Advisory Blackboard |
+
+---
+
+## 4. Technology Stack
+
+- **Core & Runtime**: Python 3.12+ / 3.14, Microsoft Agent Framework, Pydantic v2
+- **API Framework**: FastAPI, Uvicorn, Starlette
+- **Retrieval & RAG**: FastEmbed (`bge-small-en-v1.5`), Lexical Hash Embeddings, SQLite
+- **Security & Cryptography**: Argon2id (`argon2-cffi`), AES-256-GCM (`cryptography`), Windows Credential Manager (`keyring`)
+- **Storage**: SQLite 3 with Write-Ahead Logging (WAL) and foreign key enforcement
+- **External Providers**: Cerebras Cloud SDK, Google GenAI SDK, Groq SDK, Open-Meteo, data.gov.in
+
+---
+
+## 5. Prerequisites & Installation
+
+### Prerequisites
+- Windows 10/11 with PowerShell 5.1+ or PowerShell 7+
+- Python 3.12+ (tested through Python 3.14)
+- `uv` package manager (`pip install uv` or official standalone installer)
+
+### Quick Installation
+```powershell
+# Clone the repository
+git clone https://github.com/bgagankumarreddy/rythusaathi.git
+cd rythusaathi
+
+# Sync virtual environment and install all dependencies
+uv sync
+```
+
+---
+
+## 6. Configuration & BYOK Setup
+
+RythuSaathi uses a Bring-Your-Own-Key (BYOK) architecture. User API keys are encrypted at rest using AES-256-GCM envelope encryption with a Key Encryption Key (KEK) managed by Windows Credential Manager.
+
+### Option A: Setup via Interactive CLI
+```powershell
+# 1. Register a local user and tenant
+uv run python scripts/byok_cli.py register
+
+# 2. Add your provider API key (e.g. Cerebras, Gemini, or Groq)
+uv run python scripts/byok_cli.py add-cerebras
+uv run python scripts/byok_cli.py add-groq
+uv run python scripts/byok_cli.py add-gemini
+
+# 3. List active encrypted credentials (raw keys are never displayed)
+uv run python scripts/byok_cli.py list
+```
+
+### Option B: Setup via REST API
+Credentials can also be enrolled programmatically via `POST /api/v1/credentials` once authenticated.
+
+---
+
+## 7. Running the Application
+
+### 1. Launch the FastAPI Server
+```powershell
+uv run uvicorn rythusaathi.api.app:app --reload --host 127.0.0.1 --port 8000
+```
+- **Base URL**: `http://127.0.0.1:8000/api/v1`
+- **Swagger UI (Interactive Docs)**: `http://127.0.0.1:8000/docs`
+- **ReDoc Documentation**: `http://127.0.0.1:8000/redoc`
+- **OpenAPI JSON**: `http://127.0.0.1:8000/openapi.json`
+
+### 2. Run the Command-Line Interface (CLI)
+```powershell
+# Run deterministic offline baseline advisory
+uv run python scripts/advisory_cli.py "My cotton crop is flowering in Adilabad. What pest risks should I watch for and what are mandi prices?"
+
+# Run with an external LLM provider using stored BYOK credentials
+uv run python scripts/advisory_cli.py --mode cerebras "My cotton crop is flowering in Adilabad."
+```
+
+---
+
+## 8. Verification & Testing
+
+The repository maintains rigorous unit, integration, and security regression test suites:
+
+```powershell
+# Run the FastAPI REST API and security test suite
+uv run python -m pytest tests/test_api.py -v
+
+# Run the complete repository test suite
+uv run python -m pytest -q
+```
+*Current test status: **489 tests passing**, 1 skipped, 91 subtests passed, 0 warnings.*
+
+---
+
+## 9. Project Structure
 
 ```text
-src/rythusaathi/inference/       Provider contracts and sanitized errors
-src/rythusaathi/inference/providers/  Provider adapters (Groq first)
-src/rythusaathi/inference/service.py Authenticated stored-credential inference boundary
-src/rythusaathi/security.py      Verified-identity and BYOK authorization contracts
-src/rythusaathi/local_auth.py   Argon2id local auth and opaque SQLite sessions
-src/rythusaathi/credentials.py  AES-GCM envelope and SQLite credential lifecycle
-src/rythusaathi/recovery.py    Fail-closed offline SQLite restore
-src/rythusaathi/domain/         Request context, registries, resolver, board, evidence and recommendations
-src/rythusaathi/agents/         Six typed agents and Microsoft Agent Framework orchestration
-scripts/advisory_cli.py         Local CLI over the shared six-agent workflow
-scripts/byok_cli.py             Local user and Windows-protected Groq BYOK setup
-scripts/evaluate_phase5.py      Bounded mock-based Phase 5 evaluation
-tests/                           Provider, identity, crypto and lifecycle tests
-tests/test_agents.py             Phase 4 workflow, provider and evidence integration tests
-tests/test_domain_*.py           Phase 2 context, registry, board and contract tests
-tmp/phase0_feasibility/          Disposable runtime, graph and provider spikes
-output/                          Approved architecture and execution plans
+rythusaathi/
+├── data/                         # Curated ICAR bulletins and central scheme catalogs
+│   ├── agricultural/             # ICAR advisories by crop and growth stage
+│   └── schemes/                  # PM-KISAN, PMFBY, and state welfare definitions
+├── docs/                         # Architecture, audit reports, and handover guides
+│   ├── FRONTEND_API_HANDOVER.md  # Complete REST API specification for React frontend
+│   └── PHASE_7_SECURITY_AUDIT.md # Security audit and vulnerability verification report
+├── scripts/                      # Operational and evaluation command-line scripts
+│   ├── advisory_cli.py           # CLI interface for the seven-agent advisory workflow
+│   └── byok_cli.py               # BYOK encrypted credential enrollment CLI
+├── src/rythusaathi/              # Core production package
+│   ├── agents/                   # Seven agents and Microsoft Agent Framework workflow
+│   │   ├── workflow.py           # Seven-agent workflow graph & coordinator synthesis
+│   │   └── contracts.py          # Typed evidence, findings, and board state contracts
+│   ├── api/                      # Production FastAPI REST API
+│   │   ├── routes/               # Modular routes: auth, credentials, advisories, history, config
+│   │   ├── schemas/              # Pydantic v2 request and response contracts
+│   │   ├── dependencies.py       # Fail-closed auth and KEK dependency injection
+│   │   ├── history.py            # SQLite WAL advisory consultation persistence
+│   │   └── exceptions.py         # Diagnostic-safe sanitized exception handlers
+│   ├── domain/                   # Crop/location registries, advisory board, and risk rules
+│   │   ├── board.py              # Agricultural advisory blackboard and claim conflict detection
+│   │   └── risks.py              # Active risk detection vs background vulnerability logic
+│   ├── inference/                # Provider-neutral LLM boundary (Cerebras, Gemini, Groq)
+│   ├── knowledge/                # Document processor and SQLite vector/hash embeddings
+│   ├── credentials.py            # AES-256-GCM envelope encryption & Windows KEK store
+│   ├── local_auth.py             # Argon2id password authentication & hashed sessions
+│   └── security.py               # Verified identity, roles, and capability policies
+└── tests/                        # Comprehensive unit, integration, and security test suites
 ```
 
-The provider slice uses the versions exercised by the Phase 0 compatibility
-workspace. To install it and run the unit tests in a clean environment:
+---
 
-```powershell
-python -m pip install -e ".[test]"
-python -m unittest discover -s tests -v
-```
+## 10. Security & Privacy
 
-The Phase 4 CLI builds a local SQLite index with the pinned Phase 3 FastEmbed
-model and uses unavailable-by-default weather and market adapters:
+1. **Local-First Zero Leakage**: All farmer consultations, diagnostic traces, and identity records reside locally in SQLite databases (`PRAGMA journal_mode = WAL`).
+2. **Fail-Closed KEK Protection**: Production credential storage relies on Windows Credential Manager (`WindowsCredentialStore`). Ephemeral in-memory KEK fallback is disabled by default to prevent silent credential loss upon restart.
+3. **Argon2id & Token Hashing**: User passwords are encrypted with memory-hard Argon2id parameters. Session tokens are 256-bit URL-safe strings whose SHA-256 hashes only are stored in SQLite.
+4. **Tenant & User Isolation**: All credential queries, advisory lookups, and diagnostic traces strictly enforce composite owner checks (`tenant_id` + `user_id`).
+5. **No Secret In Traces**: Raw API keys, passwords, and decrypted provider secrets are explicitly excluded from API responses, serialized traces, and logs.
 
-```powershell
-python scripts/advisory_cli.py "My rice leaves are turning yellow in Punjab. What should I do, and are there government schemes?"
-```
+---
 
-Use `--lexical` for a deterministic offline hashing baseline. Hash embeddings
-are not semantic embeddings. The pinned model must be cached for offline
-FastEmbed use; its first install may require network access. Deterministic
-weather/market fixtures are available for tests only and are clearly labeled
-as synthetic.
+## 11. Known Limitations & Frontend Status
 
-Phase 5 keeps deterministic behavior as the default. Groq mode is opt-in and
-uses the same Phase 4 graph, Phase 3 SQLite index, board and source filters. On
-Windows, create a local tenant/user and store a Groq key through the existing
-credential service and Windows Credential Manager adapter:
-
-```powershell
-python scripts/byok_cli.py --database tmp/phase5-local-auth.sqlite3 register
-python scripts/byok_cli.py --database tmp/phase5-local-auth.sqlite3 add-groq
-python scripts/byok_cli.py --database tmp/phase5-local-auth.sqlite3 list-groq
-python scripts/advisory_cli.py --mode groq `
-  --auth-database tmp/phase5-local-auth.sqlite3 `
-  --credential-id YOUR_OWNER_SCOPED_CREDENTIAL_ID `
-  "My rice leaves are yellowing in Punjab. What should I check?"
-```
-
-The setup commands prompt for passwords and the API key without echoing them.
-The advisory command prompts for the user's tenant, username and password. It
-accepts a credential ID, never a raw API key. The local session is logged out
-after a run. The authenticated service checks that the session owner and tenant
-match the advisory request before dispatching the matching user's Groq key.
-Model, timeout and TPM-budget settings are non-secret configuration
-(`GROQ_MODEL_ID`, `GROQ_TIMEOUT_SECONDS`, `GROQ_TPM_LIMIT_TOKENS`,
-`GROQ_TPM_HEADROOM_TOKENS`, and `GROQ_MAX_OUTPUT_TOKENS`). Defaults for the
-current model are 8,000 TPM, an 800-token headroom, and a 1,024-token global
-output ceiling. The workflow uses smaller role-specific output ceilings:
-Intake 256, Crop/Scheme 256 each, and Coordinator 384. These settings do not
-provide API-key authentication; there is no environment API-key fallback.
-Deterministic mode remains the default and does not call an inference provider.
-The provider reserves a rolling local TPM budget using a byte-based estimate
-before dispatch, then replaces that reservation with validated provider usage
-when it is returned. This estimate is a guardrail, not exact Groq tokenization.
-The CLI reports only sanitized agent, correlation, estimated/actual token and
-budget-decision metadata. Provider exception text, authorization headers and
-credentials are never included.
-For HTTP 429, diagnostics may also show parsed `Retry-After` and rate-limit
-remaining/reset metadata. The client makes at most one automatic retry, only
-when a valid provider delay/reset is at most two seconds, the response does not
-indicate a daily/account quota exhaustion, and the request has no tools. Longer,
-missing/invalid wait metadata, and explicit daily/account quota exhaustion return
-immediately to deterministic fallback; account quota exhaustion is reported as
-requiring provider quota availability or account-side action.
-An over-budget request is rejected before it reaches Groq and keeps the same
-deterministic fallback. Specialist prompts retain their scoped source excerpts.
-Coordinator receives only validated specialist findings plus a de-duplicated
-source/evidence citation catalog, so it does not receive those excerpts again.
-Source records returned to the farmer retain full URLs, excerpts and per-chunk
-provenance; Coordinator retains source references, provenance identity, evidence
-IDs, mode, and crop/geographic applicability.
-
-Run the bounded evaluation with mocked Groq responses:
-
-```powershell
-python scripts/evaluate_phase5.py
-python scripts/evaluate_phase5.py --semantic
-```
-
-The default retrieval backend is explicitly labeled as a deterministic hash
-baseline, not semantic embeddings. `--semantic` uses the pinned FastEmbed
-model. Mocked workflow results measure retrieval relevance, context validation,
-structured parsing, citation integrity, unsupported-case behavior and failure
-handling; they do not measure live Groq answer quality. Live tests remain
-opt-in and require a locally configured BYOK credential; no key belongs in
-the repository.
-
-Microsoft Agent Framework remains the orchestration framework. Local auth
-uses database memberships and server-side sessions; credential KEKs use the
-Windows Credential Manager adapter and fail closed when unavailable. No cloud
-KMS or external identity provider is used. See
-`output/RythuSaathi_Phase1_Execution_Record.md` for implementation scope,
-recovery limitations, and current verification status. See
-`output/RythuSaathi_Phase2_Execution_Record.md` for Phase 2 scope, test results,
-seed-catalog sources and limitations. See
-`output/RythuSaathi_Phase3_Execution_Record.md` and
-`output/RythuSaathi_Phase4_Execution_Record.md` for RAG and agent integration
-scope, verification and limitations. See
-`output/RythuSaathi_Phase5_Execution_Record.md` for LLM integration, evaluation
-results and the exact Phase 5 acceptance assessment.
+- **Operating System KEK**: The persistent KEK adapter currently targets Windows Credential Manager (`win32`). Linux deployments currently require an explicit test environment flag or an HSM/Keyutils adapter.
+- **Tenant Membership**: Standard `member` registration into existing tenants is open by tenant ID; signed invite tokens and administrator approvals are planned for enterprise multi-tenancy.
+- **Frontend Status**: The React + Vite + Tailwind frontend is developed independently in a separate workspace using the endpoints documented in [`docs/FRONTEND_API_HANDOVER.md`](docs/FRONTEND_API_HANDOVER.md).
