@@ -2,10 +2,13 @@
 
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4-38B2AC.svg)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-489%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/backend%20tests-489%20passed-brightgreen.svg)]()
+[![Frontend Tests](https://img.shields.io/badge/frontend%20tests-20%20passed-brightgreen.svg)]()
 
-> **RythuSaathi** (*Farmer's Companion*) is an academic, production-grade agricultural multi-agent AI system. It provides verified, multi-domain agronomic intelligence—integrating real-time weather observations, localized crop protection guidelines, official mandi commodity prices, and government welfare schemes—grounded in scientific research to eliminate model hallucinations.
+> **RythuSaathi** (*Farmer's Companion*) is an academic, production-grade agricultural multi-agent AI system with a modern React SaaS frontend. It delivers verified, multi-domain agronomic intelligence—integrating real-time weather observations, localized crop protection guidelines, official mandi commodity prices, and government welfare schemes—grounded in scientific research to eliminate model hallucinations.
 
 ---
 
@@ -13,7 +16,7 @@
 
 Smallholder farmers frequently face fragmented, conflicting, and unverified agricultural advice across weather forecasts, pest outbreaks, APMC mandi trading, and welfare scheme eligibility. Generic commercial LLMs frequently hallucinate pesticide dosages, misquote government deadlines, or recommend inappropriate regional treatments.
 
-**RythuSaathi** solves this through a local-first, multi-agent architecture built on the **Microsoft Agent Framework**. It treats every agronomic claim as an evidence-backed assertion, cross-examining multi-domain evidence on a shared agricultural blackboard before generating actionable farmer advisories.
+**RythuSaathi** solves this through a local-first, multi-agent architecture built on the **Microsoft Agent Framework** connected to a modern React 19 dashboard. It treats every agronomic claim as an evidence-backed assertion, cross-examining multi-domain evidence on a shared agricultural blackboard before generating actionable farmer advisories.
 
 ---
 
@@ -24,6 +27,7 @@ Smallholder farmers frequently face fragmented, conflicting, and unverified agri
 - **Dual-Tier Risk Alerting**: Clear distinction between **active, evidence-backed hazards** (e.g. excess rainfall within 48h) and **background crop vulnerabilities** (e.g. general pest susceptibility).
 - **Zero-Trust BYOK Security**: Bring-Your-Own-Key model with AES-256-GCM envelope encryption backed by Windows Credential Manager.
 - **Provider-Neutral LLM Engine**: Seamless execution across **Cerebras** (wafer-scale engine, 30k TPM), **Google Gemini**, **Groq** (LPU), and an offline **Deterministic Baseline**.
+- **Modern React SaaS Frontend**: Forest-green agricultural dashboard with real-time agent execution visualization, interactive next steps, and evidence traceability.
 - **Production REST API**: Local-first FastAPI service with interactive OpenAPI docs, SQLite WAL persistence, and strict tenant/user isolation.
 
 ---
@@ -79,8 +83,9 @@ Smallholder farmers frequently face fragmented, conflicting, and unverified agri
 
 ---
 
-## 4. Technology Stack
+## 4. Full-Stack Technology Stack
 
+### Backend
 - **Core & Runtime**: Python 3.12+ / 3.14, Microsoft Agent Framework, Pydantic v2
 - **API Framework**: FastAPI, Uvicorn, Starlette
 - **Retrieval & RAG**: FastEmbed (`bge-small-en-v1.5`), Lexical Hash Embeddings, SQLite
@@ -88,32 +93,66 @@ Smallholder farmers frequently face fragmented, conflicting, and unverified agri
 - **Storage**: SQLite 3 with Write-Ahead Logging (WAL) and foreign key enforcement
 - **External Providers**: Cerebras Cloud SDK, Google GenAI SDK, Groq SDK, Open-Meteo, data.gov.in
 
+### Frontend
+- **Framework & Build**: React 19, Vite, JavaScript (JSX)
+- **Styling & Design System**: Tailwind CSS v4, Lucide React icons
+- **State & Routing**: React Context, React Router 7, Axios
+- **Testing**: Vitest, React Testing Library, JSDOM
+
 ---
 
 ## 5. Prerequisites & Installation
 
 ### Prerequisites
 - Windows 10/11 with PowerShell 5.1+ or PowerShell 7+
+- Node.js 18+ (tested on Node v22.20.0, npm 11.6.4)
 - Python 3.12+ (tested through Python 3.14)
-- `uv` package manager (`pip install uv` or official standalone installer)
+- `uv` package manager (`pip install uv`)
 
-### Quick Installation
+### 1. Clone & Backend Setup
 ```powershell
-# Clone the repository
-git clone https://github.com/bgagankumarreddy/rythusaathi.git
+git clone https://github.com/BGaganKumarreddy/rythuusaathi.git
 cd rythusaathi
 
-# Sync virtual environment and install all dependencies
+# Sync Python virtual environment and dependencies
 uv sync
+```
+
+### 2. Frontend Setup
+```powershell
+cd frontend
+npm install
+cd ..
 ```
 
 ---
 
-## 6. Configuration & BYOK Setup
+## 6. Running the Application
+
+### Step 1: Start the FastAPI Backend
+In your first terminal:
+```powershell
+uv run uvicorn rythusaathi.api.app:app --reload --host 127.0.0.1 --port 8000
+```
+- **API Base URL**: `http://127.0.0.1:8000/api/v1`
+- **Swagger UI (Interactive Docs)**: `http://127.0.0.1:8000/docs`
+- **ReDoc Documentation**: `http://127.0.0.1:8000/redoc`
+
+### Step 2: Start the React Frontend
+In your second terminal:
+```powershell
+cd frontend
+npm run dev
+```
+- **Application URL**: `http://localhost:5173`
+
+---
+
+## 7. Configuration & BYOK Setup
 
 RythuSaathi uses a Bring-Your-Own-Key (BYOK) architecture. User API keys are encrypted at rest using AES-256-GCM envelope encryption with a Key Encryption Key (KEK) managed by Windows Credential Manager.
 
-### Option A: Setup via Interactive CLI
+You can enroll your provider keys directly in the web UI under **BYOK Vault** (`/credentials`) or via the interactive CLI:
 ```powershell
 # 1. Register a local user and tenant
 uv run python scripts/byok_cli.py register
@@ -127,45 +166,26 @@ uv run python scripts/byok_cli.py add-gemini
 uv run python scripts/byok_cli.py list
 ```
 
-### Option B: Setup via REST API
-Credentials can also be enrolled programmatically via `POST /api/v1/credentials` once authenticated.
-
----
-
-## 7. Running the Application
-
-### 1. Launch the FastAPI Server
-```powershell
-uv run uvicorn rythusaathi.api.app:app --reload --host 127.0.0.1 --port 8000
-```
-- **Base URL**: `http://127.0.0.1:8000/api/v1`
-- **Swagger UI (Interactive Docs)**: `http://127.0.0.1:8000/docs`
-- **ReDoc Documentation**: `http://127.0.0.1:8000/redoc`
-- **OpenAPI JSON**: `http://127.0.0.1:8000/openapi.json`
-
-### 2. Run the Command-Line Interface (CLI)
-```powershell
-# Run deterministic offline baseline advisory
-uv run python scripts/advisory_cli.py "My cotton crop is flowering in Adilabad. What pest risks should I watch for and what are mandi prices?"
-
-# Run with an external LLM provider using stored BYOK credentials
-uv run python scripts/advisory_cli.py --mode cerebras "My cotton crop is flowering in Adilabad."
-```
-
 ---
 
 ## 8. Verification & Testing
 
-The repository maintains rigorous unit, integration, and security regression test suites:
+Both backend and frontend maintain comprehensive unit, integration, and security regression test suites:
 
 ```powershell
-# Run the FastAPI REST API and security test suite
+# 1. Run the Frontend Vitest Suite (20 tests)
+cd frontend
+npm run test
+npm run build
+cd ..
+
+# 2. Run the Backend FastAPI API & Security Tests (27 tests)
 uv run python -m pytest tests/test_api.py -v
 
-# Run the complete repository test suite
+# 3. Run the Full Backend Test Suite (489 tests)
 uv run python -m pytest -q
 ```
-*Current test status: **489 tests passing**, 1 skipped, 91 subtests passed, 0 warnings.*
+*Current test status: **489 backend tests passing**, **20 frontend tests passing**, 0 warnings.*
 
 ---
 
@@ -178,23 +198,24 @@ rythusaathi/
 │   └── schemes/                  # PM-KISAN, PMFBY, and state welfare definitions
 ├── docs/                         # Architecture, audit reports, and handover guides
 │   ├── FRONTEND_API_HANDOVER.md  # Complete REST API specification for React frontend
-│   └── PHASE_7_SECURITY_AUDIT.md # Security audit and vulnerability verification report
+│   ├── PHASE_7_SECURITY_AUDIT.md # Security audit and vulnerability verification report
+│   └── PHASE_8_FRONTEND_REPORT.md# Frontend implementation and verification report
+├── frontend/                     # Modern React 19 + Tailwind CSS SaaS Frontend
+│   ├── src/
+│   │   ├── components/           # UI design system, layout, and advisory panels
+│   │   ├── context/              # AuthContext, ToastContext, ConfigContext
+│   │   ├── pages/                # Dashboard, Advisory, History, Credentials, Settings
+│   │   ├── services/             # Axios API clients for all backend endpoints
+│   │   └── test/                 # Vitest and React Testing Library test suites
+│   ├── package.json
+│   └── vite.config.js
 ├── scripts/                      # Operational and evaluation command-line scripts
 │   ├── advisory_cli.py           # CLI interface for the seven-agent advisory workflow
 │   └── byok_cli.py               # BYOK encrypted credential enrollment CLI
-├── src/rythusaathi/              # Core production package
+├── src/rythusaathi/              # Core production backend package
 │   ├── agents/                   # Seven agents and Microsoft Agent Framework workflow
-│   │   ├── workflow.py           # Seven-agent workflow graph & coordinator synthesis
-│   │   └── contracts.py          # Typed evidence, findings, and board state contracts
 │   ├── api/                      # Production FastAPI REST API
-│   │   ├── routes/               # Modular routes: auth, credentials, advisories, history, config
-│   │   ├── schemas/              # Pydantic v2 request and response contracts
-│   │   ├── dependencies.py       # Fail-closed auth and KEK dependency injection
-│   │   ├── history.py            # SQLite WAL advisory consultation persistence
-│   │   └── exceptions.py         # Diagnostic-safe sanitized exception handlers
 │   ├── domain/                   # Crop/location registries, advisory board, and risk rules
-│   │   ├── board.py              # Agricultural advisory blackboard and claim conflict detection
-│   │   └── risks.py              # Active risk detection vs background vulnerability logic
 │   ├── inference/                # Provider-neutral LLM boundary (Cerebras, Gemini, Groq)
 │   ├── knowledge/                # Document processor and SQLite vector/hash embeddings
 │   ├── credentials.py            # AES-256-GCM envelope encryption & Windows KEK store
@@ -207,16 +228,14 @@ rythusaathi/
 
 ## 10. Security & Privacy
 
-1. **Local-First Zero Leakage**: All farmer consultations, diagnostic traces, and identity records reside locally in SQLite databases (`PRAGMA journal_mode = WAL`).
+1. **Zero Secret Leakage**: Raw API keys and passwords are never persisted in traces, returned in HTTP responses, stored in frontend storage, or logged.
 2. **Fail-Closed KEK Protection**: Production credential storage relies on Windows Credential Manager (`WindowsCredentialStore`). Ephemeral in-memory KEK fallback is disabled by default to prevent silent credential loss upon restart.
 3. **Argon2id & Token Hashing**: User passwords are encrypted with memory-hard Argon2id parameters. Session tokens are 256-bit URL-safe strings whose SHA-256 hashes only are stored in SQLite.
 4. **Tenant & User Isolation**: All credential queries, advisory lookups, and diagnostic traces strictly enforce composite owner checks (`tenant_id` + `user_id`).
-5. **No Secret In Traces**: Raw API keys, passwords, and decrypted provider secrets are explicitly excluded from API responses, serialized traces, and logs.
 
 ---
 
-## 11. Known Limitations & Frontend Status
+## 11. Known Limitations
 
-- **Operating System KEK**: The persistent KEK adapter currently targets Windows Credential Manager (`win32`). Linux deployments currently require an explicit test environment flag or an HSM/Keyutils adapter.
+- **Operating System KEK**: The persistent KEK adapter currently targets Windows Credential Manager (`win32`). Linux deployments currently require an explicit test environment flag or an OS Keyutils/SecretService adapter.
 - **Tenant Membership**: Standard `member` registration into existing tenants is open by tenant ID; signed invite tokens and administrator approvals are planned for enterprise multi-tenancy.
-- **Frontend Status**: The React + Vite + Tailwind frontend is developed independently in a separate workspace using the endpoints documented in [`docs/FRONTEND_API_HANDOVER.md`](docs/FRONTEND_API_HANDOVER.md).

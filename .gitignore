@@ -26,6 +26,14 @@ output/models/
 # Environment and secrets
 .env
 .env.*
+!.env.example
+!frontend/.env.example
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
 
 # OS files
 .DS_Store

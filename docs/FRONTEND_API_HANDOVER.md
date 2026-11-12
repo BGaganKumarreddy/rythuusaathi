@@ -518,3 +518,4 @@ Pre-populate dropdowns, autocomplete inputs, and filters in the frontend UI usin
 
 ### 4. Suggested Next Steps
 - The backend parses out bullet points under `suggested_next_steps` as an array of strings, ready to render directly into interactive checkboxes or action checklists.
+
