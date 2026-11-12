@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from .contracts import (InferenceProvider, InferenceRequest, ProviderCredential,
-                        ProviderFailure, ProviderFailureKind, ProviderResponse)
+from .contracts import (InferenceDiagnostic, InferenceDiagnosticCode,
+                        InferenceProvider, InferenceRequest, InferenceStage,
+                        ProviderCredential, ProviderFailure,
+                        ProviderFailureKind, ProviderResponse)
 from ..credentials import CredentialService
 from ..local_auth import LocalAuthentication
 
@@ -54,6 +56,27 @@ class AuthenticatedInferenceService:
         value = getattr(config, "model_id", None)
         return value if isinstance(value, str) and value else None
 
+    @property
+    def remaining_budget_tokens(self) -> int | None:
+        """Expose non-secret remaining token budget when tracked by provider."""
+        remaining_fn = getattr(self._provider, "_remaining_budget", None)
+        if callable(remaining_fn):
+            return remaining_fn()
+        return None
+
+    def reserve_budget(self, token_count: int) -> list[float | int] | None:
+        """Reserve a block of tokens on the underlying provider, when supported."""
+        fn = getattr(self._provider, "reserve_budget", None)
+        if callable(fn):
+            return fn(token_count)
+        return None
+
+    def release_reservation(self, reservation: list[float | int] | None) -> None:
+        """Release a previously acquired reservation on the underlying provider."""
+        fn = getattr(self._provider, "release_reservation", None)
+        if callable(fn):
+            fn(reservation)
+
     async def complete(self, session_token: str, credential_id: str,
                        request: InferenceRequest, *,
                        expected_user_id: str | None = None,
@@ -83,12 +106,48 @@ class AuthenticatedInferenceService:
             failure = ProviderFailure(exc.kind, exc.diagnostic)
         except Exception:
             # A provider wrapper must not let arbitrary SDK exception text escape.
-            failure = ProviderFailure(ProviderFailureKind.PROVIDER_FAILURE)
+            code = (
+                InferenceDiagnosticCode.CEREBRAS_PROVIDER_FAILURE
+                if self._expected_provider_id == "cerebras"
+                else (
+                    InferenceDiagnosticCode.GEMINI_PROVIDER_FAILURE
+                    if self._expected_provider_id == "gemini"
+                    else InferenceDiagnosticCode.GROQ_PROVIDER_FAILURE
+                )
+            )
+            failure = ProviderFailure(
+                ProviderFailureKind.PROVIDER_FAILURE,
+                InferenceDiagnostic(
+                    code=code,
+                    stage=InferenceStage.PROVIDER_TRANSPORT,
+                    provider=self._expected_provider_id,
+                    model_id=self.model_id,
+                    agent_name=request.agent_name,
+                ),
+            )
         if failure is not None:
             # Raise after leaving the handler so SDK errors are not retained as context.
             raise failure from None
         if not isinstance(result, ProviderResponse):
-            raise ProviderFailure(ProviderFailureKind.PROVIDER_FAILURE) from None
+            code = (
+                InferenceDiagnosticCode.CEREBRAS_PROVIDER_FAILURE
+                if self._expected_provider_id == "cerebras"
+                else (
+                    InferenceDiagnosticCode.GEMINI_PROVIDER_FAILURE
+                    if self._expected_provider_id == "gemini"
+                    else InferenceDiagnosticCode.GROQ_PROVIDER_FAILURE
+                )
+            )
+            raise ProviderFailure(
+                ProviderFailureKind.PROVIDER_FAILURE,
+                InferenceDiagnostic(
+                    code=code,
+                    stage=InferenceStage.PROVIDER_TRANSPORT,
+                    provider=self._expected_provider_id,
+                    model_id=self.model_id,
+                    agent_name=request.agent_name,
+                ),
+            ) from None
         return result
 
 
@@ -128,5 +187,25 @@ class AuthenticatedGeminiService(AuthenticatedInferenceService):
             provider,
             expected_provider_id="gemini",
         )
+
+
+class AuthenticatedCerebrasService(AuthenticatedInferenceService):
+    """Authenticated inference service specialized for Cerebras."""
+
+    def __init__(
+        self,
+        authentication: LocalAuthentication,
+        credential_service: CredentialService,
+        provider: InferenceProvider,
+    ):
+        if getattr(provider, "provider_id", None) != "cerebras":
+            raise ValueError("AuthenticatedCerebrasService requires the Cerebras provider")
+        super().__init__(
+            authentication,
+            credential_service,
+            provider,
+            expected_provider_id="cerebras",
+        )
+
 
 

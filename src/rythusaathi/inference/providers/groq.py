@@ -463,10 +463,24 @@ class GroqProvider:
             return event, remaining - token_count, 0.0
 
     def _settle_budget(self, reservation: list[float | int], actual_tokens: int | None) -> None:
-        if actual_tokens is None:
-            return
         with self._budget_lock:
-            reservation[1] = actual_tokens
+            if actual_tokens is None:
+                if reservation in self._budget_events:
+                    self._budget_events.remove(reservation)
+            else:
+                reservation[1] = actual_tokens
+
+    def reserve_budget(self, token_count: int) -> list[float | int] | None:
+        """Reserve a block of tokens in the rolling budget window."""
+        if not isinstance(token_count, int) or isinstance(token_count, bool) or token_count < 1:
+            return None
+        res, _, _ = self._reserve_budget(token_count)
+        return res
+
+    def release_reservation(self, reservation: list[float | int] | None) -> None:
+        """Release a previously acquired budget reservation."""
+        if reservation is not None:
+            self._settle_budget(reservation, None)
 
     def _remaining_budget(self) -> int:
         now = time.monotonic()

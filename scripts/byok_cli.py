@@ -64,9 +64,37 @@ def _run(args: argparse.Namespace) -> int:
             api_key = ""
             print(f"Stored owner-scoped Groq credential. Credential ID: {status.credential_id}")
             return 0
-        statuses = credentials.list_status(identity, provider_id="groq")
+        if args.command == "list-groq":
+            statuses = credentials.list_status(identity, provider_id="groq")
+            if not statuses:
+                print("No Groq credentials are registered for this user.")
+                return 0
+            for status in statuses:
+                print(f"{status.credential_id}  {status.state.value}  generation {status.generation}")
+            return 0
+        if args.command == "add-cerebras":
+            api_key = getpass.getpass("Cerebras API key (input is hidden): ")
+            status = credentials.create(identity, "cerebras", api_key)
+            api_key = ""
+            print(f"Stored owner-scoped Cerebras credential. Credential ID: {status.credential_id}")
+            return 0
+        if args.command == "list-cerebras":
+            statuses = credentials.list_status(identity, provider_id="cerebras")
+            if not statuses:
+                print("No Cerebras credentials are registered for this user.")
+                return 0
+            for status in statuses:
+                print(f"{status.credential_id}  {status.state.value}  generation {status.generation}")
+            return 0
+        if args.command == "add-mandi":
+            api_key = getpass.getpass("data.gov.in Mandi API key (input is hidden): ")
+            status = credentials.create(identity, "data.gov.in", api_key)
+            api_key = ""
+            print(f"Stored owner-scoped data.gov.in Mandi credential. Credential ID: {status.credential_id}")
+            return 0
+        statuses = credentials.list_status(identity, provider_id="data.gov.in")
         if not statuses:
-            print("No Groq credentials are registered for this user.")
+            print("No data.gov.in Mandi credentials are registered for this user.")
             return 0
         for status in statuses:
             print(f"{status.credential_id}  {status.state.value}  generation {status.generation}")
@@ -84,7 +112,7 @@ def main() -> int:
                         help="SQLite identity and credential database")
     parser.add_argument(
         "command",
-        choices=("register", "add-user", "add-gemini", "list-gemini", "add-groq", "list-groq"),
+        choices=("register", "add-user", "add-gemini", "list-gemini", "add-groq", "list-groq", "add-cerebras", "list-cerebras", "add-mandi", "list-mandi"),
     )
     args = parser.parse_args()
     try:

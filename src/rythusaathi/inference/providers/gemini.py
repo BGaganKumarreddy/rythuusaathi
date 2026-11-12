@@ -53,6 +53,14 @@ DEFAULT_MODEL_ID = "gemini-3.8-flash"
 _MAX_RATE_LIMIT_RETRIES = 1
 _MAX_AUTOMATIC_RETRY_WAIT_SECONDS = 2.0
 _RETRY_BACKOFF_BASE_SECONDS = 0.25
+
+_GROQ_TO_GEMINI_DIAGNOSTIC_CODES = {
+    InferenceDiagnosticCode.GROQ_MALFORMED_RESPONSE: InferenceDiagnosticCode.GEMINI_MALFORMED_RESPONSE,
+    InferenceDiagnosticCode.GROQ_TIMEOUT: InferenceDiagnosticCode.GEMINI_TIMEOUT,
+    InferenceDiagnosticCode.GROQ_NETWORK_FAILURE: InferenceDiagnosticCode.GEMINI_NETWORK_FAILURE,
+    InferenceDiagnosticCode.GROQ_RATE_LIMITED: InferenceDiagnosticCode.GEMINI_RATE_LIMITED,
+    InferenceDiagnosticCode.GROQ_PROVIDER_FAILURE: InferenceDiagnosticCode.GEMINI_PROVIDER_FAILURE,
+}
 _RETRY_JITTER_SECONDS = 0.10
 _MAX_TRANSIENT_RETRIES = 1
 _TRANSIENT_BACKOFF_MIN_SECONDS = 1.0
@@ -91,6 +99,7 @@ class GeminiProviderConfig:
     tpm_limit_tokens: int | None = None
     tpm_headroom_tokens: int = 0
     rpd_limit: int | None = None
+    max_retries: int = 1
 
     def __post_init__(self) -> None:
         if not isinstance(self.model_id, str) or not self.model_id.strip():
@@ -170,6 +179,12 @@ class GeminiProviderConfig:
             and (not isinstance(self.thinking_level, str) or not self.thinking_level.strip())
         ):
             raise ValueError("thinking_level must be non-empty string or None")
+        if (
+            isinstance(self.max_retries, bool)
+            or not isinstance(self.max_retries, int)
+            or self.max_retries < 0
+        ):
+            raise ValueError("max_retries must be a non-negative integer")
 
     @property
     def has_quota_limits(self) -> bool:
@@ -197,6 +212,7 @@ class GeminiProviderConfig:
         rpd_limit: int | None = 1500,
         default_max_output_tokens: int = 1024,
         thinking_level: str | None = None,
+        max_retries: int = 1,
         **kwargs,
     ) -> "GeminiProviderConfig":
         """Configurable preset for Google AI Studio Free-Tier projects.
@@ -228,6 +244,7 @@ class GeminiProviderConfig:
             rpd_limit=rpd_limit,
             default_max_output_tokens=default_max_output_tokens,
             thinking_level=thinking_level,
+            max_retries=max_retries,
             **kwargs,
         )
 
@@ -292,6 +309,12 @@ class GeminiProviderConfig:
         raw_thinking = os.environ.get("GEMINI_THINKING_LEVEL", "").strip()
         thinking_level = None if not raw_thinking or raw_thinking.lower() in {"none", "off", "disabled"} else raw_thinking
 
+        raw_max_retries = os.environ.get("GEMINI_MAX_RETRIES", "1").strip()
+        try:
+            max_retries = int(raw_max_retries)
+        except (TypeError, ValueError):
+            raise ValueError("GEMINI_MAX_RETRIES must be an integer") from None
+
         return cls(
             model_id=os.environ.get("GEMINI_MODEL_ID", DEFAULT_MODEL_ID),
             base_url=os.environ.get("GEMINI_BASE_URL", GEMINI_BASE_URL),
@@ -307,6 +330,7 @@ class GeminiProviderConfig:
             tpm_limit_tokens=tpm_limit,
             tpm_headroom_tokens=tpm_headroom,
             rpd_limit=rpd_limit,
+            max_retries=max_retries,
         )
 
 
@@ -604,8 +628,16 @@ class GeminiProvider:
                     )
                     if isinstance(exc, ProviderFailure):
                         attempt_kind = exc.kind
+                        diag_code = _GROQ_TO_GEMINI_DIAGNOSTIC_CODES.get(
+                            exc.diagnostic.code, exc.diagnostic.code
+                        )
+                        outcome = exc.diagnostic.parsing_outcome
+                        if attempt_kind == ProviderFailureKind.MALFORMED_RESPONSE and outcome is None:
+                            outcome = "json_decode_failed"
                         attempt_diagnostic = replace(
                             exc.diagnostic,
+                            code=diag_code,
+                            parsing_outcome=outcome,
                             provider="gemini",
                             correlation_id=correlation_id,
                             model_id=exc.diagnostic.model_id or requested_model,
@@ -662,7 +694,7 @@ class GeminiProvider:
                     )
                     if (
                         (is_rate_limit or is_transient)
-                        and retries_attempted < 1
+                        and retries_attempted < self.config.max_retries
                         and _request_is_safe_to_retry(request)
                     ):
                         if is_rate_limit:
@@ -713,8 +745,16 @@ class GeminiProvider:
         except Exception as exc:
             if isinstance(exc, ProviderFailure):
                 failure_kind = exc.kind
+                diag_code = _GROQ_TO_GEMINI_DIAGNOSTIC_CODES.get(
+                    exc.diagnostic.code, exc.diagnostic.code
+                )
+                outcome = exc.diagnostic.parsing_outcome
+                if failure_kind == ProviderFailureKind.MALFORMED_RESPONSE and outcome is None:
+                    outcome = "json_decode_failed"
                 failure_diagnostic = replace(
                     exc.diagnostic,
+                    code=diag_code,
+                    parsing_outcome=outcome,
                     provider="gemini",
                     correlation_id=correlation_id,
                     model_id=exc.diagnostic.model_id or requested_model,
@@ -1001,7 +1041,7 @@ def _classify_exception_chain(exc: BaseException) -> ProviderFailureKind:
             type(current).__name__ in {
                 "TimeoutException", "ConnectTimeout", "ReadTimeout", "WriteTimeout", "PoolTimeout"
             }
-            and type(current).__module__.split(".")[0] in {"httpx", "httpx2"}
+            and type(current).__module__.split(".")[0] in {"httpx", "httpx2", "httpcore", "httpcore2"}
         ):
             return ProviderFailureKind.TIMEOUT
         current = current.__cause__ or current.__context__
@@ -1037,29 +1077,113 @@ def _classify_exception_chain(exc: BaseException) -> ProviderFailureKind:
             )
         if isinstance(current, APIStatusError):
             return _classify_status_error(current)
+        if type(current).__name__ == "HTTPStatusError" or (
+            hasattr(current, "response") and hasattr(getattr(current, "response", None), "status_code")
+        ):
+            resp = getattr(current, "response", None)
+            sc = getattr(resp, "status_code", None)
+            if isinstance(sc, int):
+                if sc in (401, 403):
+                    return ProviderFailureKind.AUTHENTICATION
+                if sc == 429:
+                    return ProviderFailureKind.RATE_LIMIT
+                if sc == 504:
+                    return ProviderFailureKind.TIMEOUT
+                return ProviderFailureKind.PROVIDER_FAILURE
         current = current.__cause__ or current.__context__
     return ProviderFailureKind.PROVIDER_FAILURE
 
 
-def _extract_google_error_info(exc: BaseException | None) -> tuple[str | None, str | None]:
+def _sanitize_response_headers(headers: Any) -> tuple[tuple[str, str], ...]:
+    """Extract and sanitize safe response headers from an HTTP response or headers mapping."""
+    if not isinstance(headers, Mapping):
+        return ()
+    sanitized: list[tuple[str, str]] = []
+    _SENSITIVE_SUBSTRINGS = (
+        "auth", "key", "token", "cookie", "secret", "bearer", "credential", "password"
+    )
+    for k, v in headers.items():
+        if not isinstance(k, str) or not isinstance(v, (str, int, float)):
+            continue
+        key_lower = k.strip().lower()
+        if any(bad in key_lower for bad in _SENSITIVE_SUBSTRINGS):
+            continue
+        val_str = str(v).strip()
+        val_lower = val_str.lower()
+        if "bearer " in val_lower or "aiza" in val_lower:
+            continue
+        if len(val_str) > 200:
+            val_str = val_str[:197] + "..."
+        sanitized.append((key_lower, val_str))
+    return tuple(sanitized)
+
+
+def _extract_google_error_info(
+    exc: Any,
+) -> tuple[int | str | None, str | None, str | None]:
+    """Extract (error_code, error_status, error_message) from an HTTP exception or response object.
+
+    Gracefully inspects:
+    1. exc.body (dict, or JSON-serialized string)
+    2. exc.response (via .json(), .text, or .content)
+    Handles missing or malformed error bodies gracefully without raising.
+    """
     if exc is None:
-        return None, None
-    body = getattr(exc, "body", None)
+        return None, None, None
+
+    body: Any = getattr(exc, "body", None)
+    if body is None:
+        resp = getattr(exc, "response", exc)
+        if resp is not None and (resp is not exc or hasattr(resp, "status_code")):
+            if hasattr(resp, "json") and callable(resp.json):
+                try:
+                    body = resp.json()
+                except Exception:
+                    body = None
+            if body is None and hasattr(resp, "text") and isinstance(resp.text, str) and resp.text.strip():
+                try:
+                    body = json.loads(resp.text)
+                except Exception:
+                    body = None
+            if body is None and hasattr(resp, "content") and isinstance(resp.content, (bytes, bytearray)) and resp.content:
+                try:
+                    body = json.loads(resp.content.decode("utf-8", errors="replace"))
+                except Exception:
+                    body = None
+
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except Exception:
+            return None, None, None
+
     if not isinstance(body, dict):
-        return None, None
+        return None, None, None
+
     error = body.get("error", body)
     if not isinstance(error, dict):
-        return None, None
+        return None, None, None
+
+    raw_code = error.get("code")
+    error_code: int | str | None = None
+    if isinstance(raw_code, int) and not isinstance(raw_code, bool) and 0 <= raw_code <= 99999:
+        error_code = raw_code
+    elif isinstance(raw_code, str):
+        cleaned_code = raw_code.strip()
+        if re.fullmatch(r"[A-Za-z0-9._/-]{1,64}", cleaned_code):
+            error_code = cleaned_code
+
     status_val = error.get("status")
     status_str = str(status_val).strip() if status_val is not None else None
     if status_str and not re.fullmatch(r"[A-Za-z0-9_]{1,64}", status_str):
         status_str = None
+
     msg_val = error.get("message")
     msg_str = str(msg_val).strip() if msg_val is not None else None
-    if msg_str:
-        if len(msg_str) > 200:
-            msg_str = msg_str[:197] + "..."
-    return status_str, msg_str
+    if msg_str and len(msg_str) > 200:
+        msg_str = msg_str[:197] + "..."
+
+    return error_code, status_str, msg_str
 
 
 def _diagnostic_for_exception(
@@ -1097,9 +1221,17 @@ def _diagnostic_for_exception(
             is_generic_timeout = True
         elif isinstance(current, asyncio.CancelledError):
             is_cancelled = True
-        if isinstance(current, APIStatusError) and status is None:
-            status = current.status_code
-            status_error = current
+        if status is None:
+            if isinstance(current, APIStatusError):
+                status = current.status_code
+                status_error = current
+            elif type(current).__name__ == "HTTPStatusError" or (
+                hasattr(current, "response") and hasattr(getattr(current, "response", None), "status_code")
+            ):
+                resp = getattr(current, "response", None)
+                if resp is not None and isinstance(getattr(resp, "status_code", None), int):
+                    status = resp.status_code
+                    status_error = current
         current = current.__cause__ or current.__context__
 
     # If APITimeoutError without specific cause, default to read timeout (the default HTTP timeout)
@@ -1162,24 +1294,64 @@ def _diagnostic_for_exception(
         stage = InferenceStage.PROVIDER_RESPONSE if status is not None else InferenceStage.PROVIDER_TRANSPORT
 
     headers = getattr(status_error, "headers", None)
-    if headers is None:
-        response_obj = getattr(status_error, "response", None)
+    response_obj = getattr(status_error, "response", None)
+    if headers is None and response_obj is not None:
         headers = getattr(response_obj, "headers", None)
+    if headers is None:
+        curr_chk: BaseException | None = exc
+        while curr_chk is not None:
+            h = getattr(curr_chk, "headers", None) or getattr(getattr(curr_chk, "response", None), "headers", None)
+            if h is not None:
+                headers = h
+                break
+            curr_chk = curr_chk.__cause__ or curr_chk.__context__
+
     err_req_id = getattr(status_error, "request_id", None)
     header_req_id = None
+    header_trace_id = None
     if isinstance(headers, Mapping):
-        lower_headers = {str(k).lower(): v for k, v in headers.items() if isinstance(v, str)}
+        lower_headers = {str(k).lower(): str(v).strip() for k, v in headers.items() if isinstance(v, (str, int, float))}
         header_req_id = (
             lower_headers.get("x-goog-request-id")
             or lower_headers.get("goog-request-id")
             or lower_headers.get("x-request-id")
             or lower_headers.get("request-id")
         )
+        raw_trace = (
+            lower_headers.get("x-goog-trace-id")
+            or lower_headers.get("x-cloud-trace-context")
+            or lower_headers.get("traceparent")
+        )
+        if raw_trace:
+            trace_clean = raw_trace.split(";")[0].strip()
+            if re.fullmatch(r"[A-Za-z0-9._/-]{1,119}", trace_clean):
+                header_trace_id = trace_clean
+
     final_request_id = request_id or err_req_id or header_req_id
+    final_trace_id = header_trace_id
+    sanitized_hdrs = _sanitize_response_headers(headers)
     retry_after = _parse_retry_after(headers)
     scope = _classify_rate_limit_scope(status_error) if kind is ProviderFailureKind.RATE_LIMIT else None
     remaining_req, remaining_tok, reset_req, reset_tok = _parse_rate_limit_headers(headers)
-    error_status, error_message = _extract_google_error_info(status_error)
+
+    error_code, error_status, error_message = _extract_google_error_info(status_error)
+    if error_code is None and error_status is None and error_message is None and response_obj is not None:
+        alt_code, alt_status, alt_message = _extract_google_error_info(response_obj)
+        error_code = error_code or alt_code
+        error_status = error_status or alt_status
+        error_message = error_message or alt_message
+    if error_code is None and error_status is None and error_message is None:
+        curr_chk = exc
+        while curr_chk is not None:
+            if curr_chk is not status_error and curr_chk is not response_obj:
+                c_code, c_status, c_msg = _extract_google_error_info(curr_chk)
+                if c_code is not None or c_status or c_msg:
+                    error_code = error_code or c_code
+                    error_status = error_status or c_status
+                    error_message = error_message or c_msg
+                    break
+            curr_chk = curr_chk.__cause__ or curr_chk.__context__
+
     exception_type_chain = " -> ".join(names) if names else None
     if exception_type_chain and len(exception_type_chain) > 200:
         exception_type_chain = exception_type_chain[:197] + "..."
@@ -1200,11 +1372,14 @@ def _diagnostic_for_exception(
         prior_rate_limits=prior_rate_limits,
         correlation_id=correlation_id,
         request_id=final_request_id,
+        trace_id=final_trace_id,
         elapsed_seconds=elapsed_seconds,
         parsing_outcome=parsing_outcome,
+        provider_error_code=error_code,
         provider_error_status=error_status,
         provider_error_message=error_message,
         exception_type_chain=exception_type_chain,
+        sanitized_response_headers=sanitized_hdrs,
     )
 
 

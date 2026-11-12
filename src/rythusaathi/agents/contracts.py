@@ -20,6 +20,7 @@ from ..domain import (
     EvidenceRecord,
     EvidenceSource,
     RequestContext,
+    RiskAlertItem,
 )
 
 
@@ -44,6 +45,7 @@ class WorkflowMode(StrEnum):
     DETERMINISTIC = "deterministic"
     GROQ = "groq"
     GEMINI = "gemini"
+    CEREBRAS = "cerebras"
 
 
 class FarmerIntent(StrEnum):
@@ -107,6 +109,8 @@ class IntakePayload:
     interpretation_mode: str = "deterministic"
     inference_status: str | None = None
     farming_problem: str | None = None
+    provider_id: str | None = None
+    model_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +124,8 @@ class RetrievalPayload:
     interpretation_mode: str | None = None
     inference_status: str | None = None
     generated_statements: tuple[GeneratedStatement, ...] = ()
+    provider_id: str | None = None
+    model_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +139,8 @@ class ProviderPayload:
     interpretation_mode: str | None = None
     inference_status: str | None = None
     generated_statements: tuple[GeneratedStatement, ...] = ()
+    provider_id: str | None = None
+    model_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,9 +152,25 @@ class CoordinatorPayload:
     interpretation_mode: str = "deterministic"
     inference_status: str | None = None
     generated_statements: tuple[GeneratedStatement, ...] = ()
+    provider_id: str | None = None
+    model_id: str | None = None
 
 
-AgentPayload: TypeAlias = IntakePayload | RetrievalPayload | ProviderPayload | CoordinatorPayload
+@dataclass(frozen=True, slots=True)
+class RiskAlertPayload:
+    alert_count: int
+    alerts: tuple[RiskAlertItem, ...]
+    summary: str
+    evidence_ids: tuple[str, ...]
+    interpretation_mode: str | None = None
+    inference_status: str | None = None
+    generated_statements: tuple[GeneratedStatement, ...] = ()
+    provider_id: str | None = None
+    model_id: str | None = None
+    background_vulnerabilities: tuple[RiskAlertItem, ...] = ()
+
+
+AgentPayload: TypeAlias = IntakePayload | RetrievalPayload | ProviderPayload | CoordinatorPayload | RiskAlertPayload
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +183,8 @@ class AgentResult:
     evidence_ids: tuple[str, ...] = ()
     finding_ids: tuple[str, ...] = ()
     error: AgentError | None = None
+    provider_id: str | None = None
+    model_id: str | None = None
 
     def __post_init__(self) -> None:
         for value in (self.started_at, self.completed_at):
@@ -234,6 +260,8 @@ class AdvisoryResponse:
             raise ValueError("Groq-mode responses must identify the selected provider")
         if self.execution_mode is WorkflowMode.GEMINI and self.provider_id != "gemini":
             raise ValueError("Gemini-mode responses must identify the selected provider")
+        if self.execution_mode is WorkflowMode.CEREBRAS and self.provider_id != "cerebras":
+            raise ValueError("Cerebras-mode responses must identify the selected provider")
         if any(item.request_id != self.request_id for item in self.evidence):
             raise ValueError("advisory evidence must belong to the current request")
         evidence_ids = {item.evidence_id for item in self.evidence}
@@ -267,6 +295,10 @@ class WeatherObservation:
     mode: EvidenceMode
     temperature_c: float | None = None
     rainfall_mm: float | None = None
+    relative_humidity_pct: float | None = None
+    wind_speed_kmh: float | None = None
+    weather_condition: str | None = None
+    forecast_summary: str | None = None
 
     def __post_init__(self) -> None:
         _validate_aware(self.observed_at, self.retrieved_at)
@@ -275,7 +307,7 @@ class WeatherObservation:
         if self.rainfall_mm is not None and self.rainfall_mm < 0:
             raise ValueError("rainfall cannot be negative")
         if any(value is not None and not math.isfinite(value)
-               for value in (self.temperature_c, self.rainfall_mm)):
+               for value in (self.temperature_c, self.rainfall_mm, self.relative_humidity_pct, self.wind_speed_kmh)):
             raise ValueError("weather values must be finite")
 
 
@@ -291,6 +323,15 @@ class MarketQuote:
     retrieved_at: datetime
     source: EvidenceSource
     mode: EvidenceMode
+    min_price: float | None = None
+    max_price: float | None = None
+    modal_price: float | None = None
+    commodity: str | None = None
+    variety: str | None = None
+    grade: str | None = None
+    state: str | None = None
+    district: str | None = None
+    arrival_date: str | None = None
 
     def __post_init__(self) -> None:
         _validate_aware(self.observed_at, self.retrieved_at)

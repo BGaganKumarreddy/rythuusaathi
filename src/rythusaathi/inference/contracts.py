@@ -25,6 +25,7 @@ class ProviderFailureKind(StrEnum):
     RATE_LIMIT = "rate_limit"
     MALFORMED_RESPONSE = "malformed_response"
     CANCELLED = "cancelled"
+    PAYMENT_REQUIRED = "payment_required"
     PROVIDER_FAILURE = "provider_failure"
 
 
@@ -60,6 +61,22 @@ class InferenceDiagnosticCode(StrEnum):
     GEMINI_BAD_GATEWAY = "gemini_bad_gateway"
     GEMINI_GATEWAY_TIMEOUT = "gemini_gateway_timeout"
     GEMINI_PROVIDER_FAILURE = "gemini_provider_failure"
+    CEREBRAS_AUTHENTICATION_FAILED = "cerebras_authentication_failed"
+    CEREBRAS_INVALID_MODEL = "cerebras_invalid_model"
+    CEREBRAS_TIMEOUT = "cerebras_timeout"
+    CEREBRAS_CONNECT_TIMEOUT = "cerebras_connect_timeout"
+    CEREBRAS_READ_TIMEOUT = "cerebras_read_timeout"
+    CEREBRAS_NETWORK_FAILURE = "cerebras_network_failure"
+    CEREBRAS_RATE_LIMITED = "cerebras_rate_limited"
+    CEREBRAS_QUOTA_EXHAUSTED = "cerebras_quota_exhausted"
+    CEREBRAS_TPM_BUDGET_EXCEEDED = "cerebras_tpm_budget_exceeded"
+    CEREBRAS_MALFORMED_RESPONSE = "cerebras_malformed_response"
+    CEREBRAS_REQUEST_REJECTED = "cerebras_request_rejected"
+    CEREBRAS_PAYMENT_REQUIRED = "cerebras_payment_required"
+    CEREBRAS_SERVICE_UNAVAILABLE = "cerebras_service_unavailable"
+    CEREBRAS_BAD_GATEWAY = "cerebras_bad_gateway"
+    CEREBRAS_GATEWAY_TIMEOUT = "cerebras_gateway_timeout"
+    CEREBRAS_PROVIDER_FAILURE = "cerebras_provider_failure"
     WORKFLOW_TIMEOUT = "workflow_timeout"
     REQUEST_CANCELLED = "request_cancelled"
     INVALID_REQUEST = "invalid_request"
@@ -123,9 +140,18 @@ class InferenceDiagnostic:
     response_character_count: int | None = None
     finish_reason: str | None = None
     parsing_outcome: str | None = None
+    validation_category: str | None = None
+    provider_error_code: int | str | None = None
     provider_error_status: str | None = None
     provider_error_message: str | None = None
+    trace_id: str | None = None
+    sanitized_response_headers: tuple[tuple[str, str], ...] = ()
     exception_type_chain: str | None = None
+
+    @property
+    def response_headers_dict(self) -> dict[str, str]:
+        """Mapping view of sanitized response headers."""
+        return dict(self.sanitized_response_headers)
 
     def __post_init__(self) -> None:
         if not isinstance(self.code, InferenceDiagnosticCode):
@@ -214,6 +240,19 @@ class InferenceDiagnostic:
             not isinstance(self.parsing_outcome, str) or not _SAFE_METADATA.fullmatch(self.parsing_outcome)
         ):
             object.__setattr__(self, "parsing_outcome", None)
+        if self.validation_category is not None and (
+            not isinstance(self.validation_category, str) or not _SAFE_METADATA.fullmatch(self.validation_category)
+        ):
+            object.__setattr__(self, "validation_category", None)
+        if self.provider_error_code is not None and (
+            isinstance(self.provider_error_code, bool)
+            or (not isinstance(self.provider_error_code, int) and (
+                not isinstance(self.provider_error_code, str)
+                or not _SAFE_METADATA.fullmatch(self.provider_error_code)
+            ))
+            or (isinstance(self.provider_error_code, int) and not (0 <= self.provider_error_code <= 99999))
+        ):
+            object.__setattr__(self, "provider_error_code", None)
         if self.provider_error_status is not None and (
             not isinstance(self.provider_error_status, str) or not _SAFE_METADATA.fullmatch(self.provider_error_status)
         ):
@@ -222,6 +261,18 @@ class InferenceDiagnostic:
             not isinstance(self.provider_error_message, str) or len(self.provider_error_message) > 300
         ):
             object.__setattr__(self, "provider_error_message", None)
+        if self.trace_id is not None and (
+            not isinstance(self.trace_id, str) or not _SAFE_METADATA.fullmatch(self.trace_id)
+        ):
+            object.__setattr__(self, "trace_id", None)
+        if any(
+            not isinstance(item, tuple)
+            or len(item) != 2
+            or not isinstance(item[0], str)
+            or not isinstance(item[1], str)
+            for item in self.sanitized_response_headers
+        ):
+            object.__setattr__(self, "sanitized_response_headers", ())
         if self.exception_type_chain is not None and (
             not isinstance(self.exception_type_chain, str)
             or not re.fullmatch(r"[A-Za-z0-9_> -]{1,200}", self.exception_type_chain)
@@ -272,6 +323,10 @@ def _default_diagnostic(kind: ProviderFailureKind) -> InferenceDiagnostic:
         ProviderFailureKind.CANCELLED: (
             InferenceDiagnosticCode.REQUEST_CANCELLED,
             InferenceStage.PROVIDER_TRANSPORT,
+        ),
+        ProviderFailureKind.PAYMENT_REQUIRED: (
+            InferenceDiagnosticCode.CEREBRAS_PAYMENT_REQUIRED,
+            InferenceStage.PROVIDER_RESPONSE,
         ),
         ProviderFailureKind.PROVIDER_FAILURE: (
             InferenceDiagnosticCode.GROQ_PROVIDER_FAILURE,
@@ -517,10 +572,18 @@ def sanitized_chat_response(response: ChatResponse, secret: str) -> ChatResponse
         # ChatResponse's public serializer intentionally omits value,
         # response_format, and additional_properties; pass those through the
         # public constructor after independently sanitizing them.
+        parsed_value = None
+        try:
+            raw_value = getattr(response, "value", None)
+            if raw_value is not None:
+                parsed_value = scrub(raw_value)
+        except Exception:
+            parsed_value = None
+
         return ChatResponse(
             **safe_data,
             messages=safe_messages,
-            value=scrub(response.value) if response.value is not None else None,
+            value=parsed_value,
             response_format=(
                 scrub(getattr(response, "response_format", None))
                 if getattr(response, "response_format", None) is not None else None

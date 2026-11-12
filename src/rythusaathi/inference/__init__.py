@@ -16,6 +16,7 @@ from .contracts import (
 )
 
 from .service import (
+    AuthenticatedCerebrasService,
     AuthenticatedGeminiService,
     AuthenticatedGroqService,
     AuthenticatedIdentityMismatch,
@@ -23,6 +24,7 @@ from .service import (
 )
 
 __all__ = [
+    "AuthenticatedCerebrasService",
     "AuthenticatedGeminiService",
     "AuthenticatedGroqService",
     "AuthenticatedIdentityMismatch",

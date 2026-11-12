@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import threading
 import unicodedata
 import uuid
@@ -13,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from .evidence import EvidenceRecord, EvidenceStatus
 from .models import RequestContext
 from .recommendations import AgriculturalRecommendation, RecommendationSupport
+from .risks import RiskAlertItem, RiskEvidenceSufficiency
 
 
 class AgentId(StrEnum):
@@ -21,6 +23,7 @@ class AgentId(StrEnum):
     CROP = "Crop"
     MARKET = "Market"
     SCHEME = "Scheme"
+    RISK_ALERT = "RiskAlert"
     COORDINATOR = "Coordinator"
 
 
@@ -30,6 +33,7 @@ class BoardSection(StrEnum):
     CROP_GUIDANCE = "crop_guidance"
     MARKET = "market"
     SCHEMES = "schemes"
+    RISK_ALERTS = "risk_alerts"
     ADVISORY = "advisory"
 
 
@@ -39,6 +43,7 @@ AGENT_WRITE_OWNERSHIP = {
     AgentId.CROP: BoardSection.CROP_GUIDANCE,
     AgentId.MARKET: BoardSection.MARKET,
     AgentId.SCHEME: BoardSection.SCHEMES,
+    AgentId.RISK_ALERT: BoardSection.RISK_ALERTS,
     AgentId.COORDINATOR: BoardSection.ADVISORY,
 }
 
@@ -53,6 +58,7 @@ class BoardTraceAction(StrEnum):
     EVIDENCE_APPENDED = "evidence_appended"
     FINDING_APPENDED = "finding_appended"
     RECOMMENDATION_APPENDED = "recommendation_appended"
+    RISK_ALERT_APPENDED = "risk_alert_appended"
     STATE_TRANSITIONED = "state_transitioned"
 
 
@@ -109,6 +115,265 @@ class FindingConflict(BaseModel):
     claims: tuple[str, ...]
 
 
+class ClaimRelationship(StrEnum):
+    DUPLICATE = "duplicate"
+    INDEPENDENT = "independent"
+    COMPATIBLE = "compatible"
+    CONTRADICTORY = "contradictory"
+
+
+_KNOWN_SCHEME_PATTERNS = {
+    "rythu_bharosa": re.compile(r"\brythu\s+bharosa\b", re.I),
+    "pm_kisan": re.compile(r"\bpm[- ]?kisan\b", re.I),
+    "pmfby": re.compile(r"\b(?:pmfby|fasal\s+bima)\b", re.I),
+    "kcc": re.compile(r"\b(?:kisan\s+credit\s+card|kcc)\b", re.I),
+    "soil_health_card": re.compile(r"\bsoil\s+health\s+card\b", re.I),
+    "paramparagat_krishi": re.compile(r"\bparamparagat\s+krishi\b", re.I),
+    "rashtriya_krishi_vikas": re.compile(r"\brashtriya\s+krishi\s+vikas\b", re.I),
+    "national_food_security": re.compile(r"\bnational\s+food\s+security\b", re.I),
+}
+
+_SCOPE_LIMITATION_PATTERN = re.compile(
+    r"\b(?:"
+    r"do(?:es)?\s+not\s+contain\s+(?:weather|market|crop|disease)|"
+    r"no\s+(?:weather|market|crop|disease)\s+(?:information|data|advice)\s+is\s+contained|"
+    r"(?:retrieved\s+)?(?:scheme\s+)?sources?\s+do\s+not\s+contain|"
+    r"does\s+not\s+(?:determine|establish)\s+(?:individual|personal)\s+eligibility|"
+    r"not\s+a\s+determination\s+of\s+(?:individual|personal)\s+eligibility|"
+    r"confirm\s+current\s+rules\s+and\s+application\s+steps|"
+    r"eligibility\s+criteria\s+in\s+source\s+excerpts\s+do\s+not\s+establish"
+    r")\b",
+    re.I,
+)
+
+_WEATHER_FORECAST_PATTERN = re.compile(
+    r"\b(?:"
+    r"forecast|3-day|next\s+\d+\s+days?|expected|upcoming|outlook|"
+    r"(?:min|max)(?:imum)?\s+(?:temperature|temp|\d+)|"
+    r"dry\s+weather|no\s+rain\s+forecast"
+    r")\b",
+    re.I,
+)
+
+_WEATHER_OBSERVATION_PATTERN = re.compile(
+    r"\b(?:"
+    r"observed|current\s+(?:weather|conditions?|temperature|observation)|"
+    r"temperature\s+\d+|humidity\s+\d+|rainfall\s+\d+|relative\s+humidity|"
+    r"wind\s+speed|\d+\s*(?:°c|c\b|mm\b|km/h|%)"
+    r")\b",
+    re.I,
+)
+
+_WEATHER_CAUTION_PATTERN = re.compile(
+    r"\b(?:"
+    r"does\s+not\s+(?:diagnose|confirm|rule\s+out)|"
+    r"cannot\s+(?:diagnose|confirm|rule\s+out)|"
+    r"field\s+inspection\s+(?:is\s+)?(?:required|recommended)|"
+    r"favorable\s+for\s+fungal|environmental\s+favorability"
+    r")\b",
+    re.I,
+)
+
+_MARKET_CAUTION_PATTERN = re.compile(
+    r"\b(?:"
+    r"(?:a\s+)?(?:single|one|current)[- ]days?(?:'s)?\s+(?:price\s+)?(?:observation|quote|data|record)?\s+"
+    r"(?:is\s+insufficient|is\s+not\s+sufficient|cannot|does\s+not|is\s+not|fails?\s+to)|"
+    r"(?:cannot|does\s+not|not\s+sufficient|insufficient\s+(?:to|for)|unable\s+to|fails?\s+to)\s+"
+    r"(?:establish|prove|determine|infer|indicate|guide|support|justify|predict|conclude)\s+"
+    r"(?:a\s+)?(?:multi[- ]day\s+)?(?:price\s+|market\s+|demand\s+)?(?:trend|trends|demand|recommendation|recommendations)|"
+    r"(?:does\s+not|cannot|insufficient\s+to|is\s+insufficient\s+to|unable\s+to)\s+justify\s+(?:a\s+)?(?:sell\s*[/,-]?\s*hold|sell\s+or\s+hold|selling\s+or\s+holding)|"
+    r"(?:sell\s*[/,-]\s*hold|selling\s+or\s+holding)\s+recommendation|"
+    r"consult\s+(?:local\s+)?(?:market|apmc|officials|traders)|"
+    r"no\s+trend\s+can\s+be\s+inferred|"
+    r"single[- ]day\s+data\s+cannot"
+    r")\b",
+    re.I,
+)
+
+_MARKET_OBSERVATION_PATTERN = re.compile(
+    r"\b(?:"
+    r"modal\s+price|price\s+(?:of\s+)?(?:[₹rs.]*\s*)?\d+|range\s+(?:of\s+)?(?:[₹rs.]*\s*)?\d+|observed\s+at|"
+    r"inr/quintal|rs/quintal|₹\s*\d+|\d+\s*inr/quintal|arrival\s+date|apmc|commodity|variety|grade|"
+    r"reported\s+a\s+modal\s+price"
+    r")\b",
+    re.I,
+)
+
+_NO_MARKET_EVIDENCE_PATTERN = re.compile(
+    r"\b(?:"
+    r"no\s+(?:current\s+)?(?:market[- ]price|market|price|quote)\s+evidence\s+(?:was|is)\s+(?:provided|available)|"
+    r"no\s+market[- ]price\s+(?:was|is)\s+(?:provided|found|available)|"
+    r"no\s+crop\s+price\s+is\s+asserted|"
+    r"no\s+price\s+(?:information|data|quote)\s+(?:was|is)\s+(?:provided|available|found)"
+    r")\b",
+    re.I,
+)
+
+
+def _normalize_market_date(date_raw: str) -> str:
+    parts = re.split(r"[-/]", date_raw)
+    if len(parts) == 3:
+        if len(parts[0]) == 4:
+            return f"{parts[2].zfill(2)}/{parts[1].zfill(2)}/{parts[0]}"
+        return f"{parts[0].zfill(2)}/{parts[1].zfill(2)}/{parts[2]}"
+    return date_raw
+
+
+def _extract_market_price_info(text: str) -> tuple[float | None, str | None, str | None, str | None]:
+    price_m = re.search(
+        r"\bmodal\s+price\s+(?:is\s+|of\s+|:\s*)?(?:(?:₹|rs\.?|inr)\s*)?(\d[\d,]*(?:\.\d+)?)",
+        text,
+        re.I,
+    )
+    modal_price = float(price_m.group(1).replace(",", "")) if price_m else None
+
+    date_m = re.search(r"\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})\b", text)
+    date_str = _normalize_market_date(date_m.group(1)) if date_m else None
+
+    mkt_m = re.search(r"\b([a-zA-Z\s]+(?:apmc|mandi|market))\b", text, re.I)
+    mkt_str = " ".join(mkt_m.group(1).casefold().split()) if mkt_m else None
+
+    comm_m = re.search(
+        r"\b(cotton(?:\s*\([^)]+\))?|paddy(?:\s*\([^)]+\))?|chilli|maize|soybean|red\s+gram|bengal\s+gram|groundnut)\b",
+        text,
+        re.I,
+    )
+    comm_str = comm_m.group(1).casefold().split("(")[0].strip() if comm_m else None
+
+    return modal_price, date_str, mkt_str, comm_str
+
+_UNRESOLVED_CONFLICT_PATTERN = re.compile(
+    r"\b(?:"
+    r"unresolved\s+(?:causes?|findings?)|"
+    r"conflicting\s+causes?|"
+    r"keep\s+(?:the\s+)?possible\s+causes\s+unresolved"
+    r")\b",
+    re.I,
+)
+
+
+def classify_claim_relationship(f1: AgentFinding, f2: AgentFinding) -> ClaimRelationship:
+    """Distinguish duplicate, independent, compatible, and genuinely contradictory claims."""
+    c1_norm = _normalize(f1.claim)
+    c2_norm = _normalize(f2.claim)
+    if c1_norm == c2_norm:
+        return ClaimRelationship.DUPLICATE
+
+    # Explicit conflict / unresolved causes statement (e.g. conflicting crop statements)
+    if _UNRESOLVED_CONFLICT_PATTERN.search(f1.claim) or _UNRESOLVED_CONFLICT_PATTERN.search(f2.claim):
+        return ClaimRelationship.CONTRADICTORY
+
+    # Affirmation vs Negation (e.g. available vs no ... available)
+    if "available" in c1_norm and "available" in c2_norm:
+        if ("no " in c1_norm or "not " in c1_norm) != ("no " in c2_norm or "not " in c2_norm):
+            return ClaimRelationship.CONTRADICTORY
+
+    # Numeric property conflict on same property (e.g. pH is 6.5 vs pH is 8.0)
+    m1 = re.search(r"\b(ph\s+is\s+)(\d+(?:\.\d+)?)\b", f1.claim, re.I)
+    m2 = re.search(r"\b(ph\s+is\s+)(\d+(?:\.\d+)?)\b", f2.claim, re.I)
+    if m1 and m2 and m1.group(1).lower() == m2.group(1).lower():
+        if m1.group(2) != m2.group(2):
+            return ClaimRelationship.CONTRADICTORY
+
+    topic_lower = f"{f1.topic} {f2.topic}".lower()
+
+    # 1. Government schemes domain:
+    is_scheme = (
+        f1.agent_id is AgentId.SCHEME
+        or f2.agent_id is AgentId.SCHEME
+        or "scheme" in topic_lower
+        or any(p.search(f1.claim) or p.search(f2.claim) for p in _KNOWN_SCHEME_PATTERNS.values())
+    )
+    if is_scheme:
+        # Scope limitations and disclaimers are compatible with any scheme statement
+        if _SCOPE_LIMITATION_PATTERN.search(f1.claim) or _SCOPE_LIMITATION_PATTERN.search(f2.claim):
+            return ClaimRelationship.COMPATIBLE
+        schemes1 = {name for name, pat in _KNOWN_SCHEME_PATTERNS.items() if pat.search(f1.claim)}
+        schemes2 = {name for name, pat in _KNOWN_SCHEME_PATTERNS.items() if pat.search(f2.claim)}
+        if schemes1 and schemes2 and not (schemes1 & schemes2):
+            return ClaimRelationship.INDEPENDENT
+        if f1.evidence_ids and f2.evidence_ids and not (set(f1.evidence_ids) & set(f2.evidence_ids)):
+            return ClaimRelationship.INDEPENDENT
+        return ClaimRelationship.INDEPENDENT
+
+    # 2. Weather domain:
+    is_weather = (
+        f1.agent_id is AgentId.WEATHER
+        or f2.agent_id is AgentId.WEATHER
+        or "weather" in topic_lower
+        or "rainfall" in topic_lower
+    )
+    if is_weather:
+        if _WEATHER_CAUTION_PATTERN.search(f1.claim) or _WEATHER_CAUTION_PATTERN.search(f2.claim):
+            return ClaimRelationship.COMPATIBLE
+        is_f1_forecast = bool(_WEATHER_FORECAST_PATTERN.search(f1.claim))
+        is_f2_forecast = bool(_WEATHER_FORECAST_PATTERN.search(f2.claim))
+        is_f1_obs = bool(_WEATHER_OBSERVATION_PATTERN.search(f1.claim))
+        is_f2_obs = bool(_WEATHER_OBSERVATION_PATTERN.search(f2.claim))
+        if (is_f1_forecast and is_f2_obs) or (is_f2_forecast and is_f1_obs):
+            return ClaimRelationship.COMPATIBLE
+        if is_f1_forecast and is_f2_forecast:
+            return ClaimRelationship.COMPATIBLE
+        if is_f1_obs and is_f2_obs:
+            return ClaimRelationship.COMPATIBLE
+
+    # 3. Market domain:
+    is_market = (
+        f1.agent_id is AgentId.MARKET
+        or f2.agent_id is AgentId.MARKET
+        or "market" in topic_lower
+        or "price" in topic_lower
+    )
+    if is_market:
+        is_neg1 = bool(_NO_MARKET_EVIDENCE_PATTERN.search(f1.claim))
+        is_neg2 = bool(_NO_MARKET_EVIDENCE_PATTERN.search(f2.claim))
+        is_f1_obs = bool(_MARKET_OBSERVATION_PATTERN.search(f1.claim))
+        is_f2_obs = bool(_MARKET_OBSERVATION_PATTERN.search(f2.claim))
+        if (is_neg1 and is_f2_obs) or (is_neg2 and is_f1_obs):
+            return ClaimRelationship.CONTRADICTORY
+
+        p1, d1, m1, comm1 = _extract_market_price_info(f1.claim)
+        p2, d2, m2, comm2 = _extract_market_price_info(f2.claim)
+
+        if p1 is not None and p2 is not None:
+            same_mkt = (m1 is None or m2 is None or m1 in m2 or m2 in m1)
+            same_comm = (comm1 is None or comm2 is None or comm1 == comm2)
+            if same_mkt and same_comm:
+                if d1 is not None and d2 is not None:
+                    if d1 == d2 and p1 != p2:
+                        return ClaimRelationship.CONTRADICTORY
+                    elif d1 != d2:
+                        return ClaimRelationship.COMPATIBLE
+                elif p1 != p2:
+                    return ClaimRelationship.CONTRADICTORY
+
+        is_f1_warn = bool(_MARKET_CAUTION_PATTERN.search(f1.claim))
+        is_f2_warn = bool(_MARKET_CAUTION_PATTERN.search(f2.claim))
+
+        if (is_f1_warn and is_f2_obs) or (is_f2_warn and is_f1_obs):
+            return ClaimRelationship.COMPATIBLE
+        if is_f1_warn and is_f2_warn:
+            return ClaimRelationship.COMPATIBLE
+        if is_f1_obs and is_f2_obs:
+            return ClaimRelationship.COMPATIBLE
+
+    # 4. Risk alert domain:
+    is_risk = (
+        f1.agent_id is AgentId.RISK_ALERT
+        or f2.agent_id is AgentId.RISK_ALERT
+        or "risk_alert" in topic_lower
+        or "risk" in topic_lower
+    )
+    if is_risk:
+        if f1.topic != f2.topic:
+            return ClaimRelationship.INDEPENDENT
+        if ("no " in c1_norm or "not " in c1_norm) != ("no " in c2_norm or "not " in c2_norm):
+            return ClaimRelationship.CONTRADICTORY
+        return ClaimRelationship.COMPATIBLE
+
+    return ClaimRelationship.CONTRADICTORY
+
+
 class BoardTraceEvent(BaseModel):
     """Safe allow-listed board activity; contains no finding or evidence text."""
 
@@ -142,6 +407,7 @@ class AdvisoryBoard:
         self._findings: list[AgentFinding] = []
         self._evidence: list[EvidenceRecord] = []
         self._recommendations: list[AgriculturalRecommendation] = []
+        self._risk_alerts: list[RiskAlertItem] = []
         self._trace_events: list[BoardTraceEvent] = []
         self._ids: set[str] = set()
 
@@ -171,6 +437,11 @@ class AdvisoryBoard:
             return tuple(self._recommendations)
 
     @property
+    def risk_alerts(self) -> tuple[RiskAlertItem, ...]:
+        with self._lock:
+            return tuple(self._risk_alerts)
+
+    @property
     def trace_events(self) -> tuple[BoardTraceEvent, ...]:
         with self._lock:
             return tuple(self._trace_events)
@@ -198,11 +469,17 @@ class AdvisoryBoard:
                 by_topic.setdefault(_normalize(finding.topic), []).append(finding)
             conflicts = []
             for group in by_topic.values():
-                claims: dict[str, list[AgentFinding]] = {}
-                for finding in group:
-                    claims.setdefault(_normalize(finding.claim), []).append(finding)
-                if len(claims) > 1:
-                    items = [finding for values in claims.values() for finding in values]
+                if len(group) <= 1:
+                    continue
+                contradictory_items: set[AgentFinding] = set()
+                for i in range(len(group)):
+                    for j in range(i + 1, len(group)):
+                        rel = classify_claim_relationship(group[i], group[j])
+                        if rel is ClaimRelationship.CONTRADICTORY:
+                            contradictory_items.add(group[i])
+                            contradictory_items.add(group[j])
+                if contradictory_items:
+                    items = sorted(contradictory_items, key=lambda f: f.finding_id)
                     conflicts.append(FindingConflict(
                         request_id=self.context.request_id,
                         topic=items[0].topic,
@@ -256,6 +533,18 @@ class AdvisoryBoard:
             self._recommendations.append(recommendation)
             self._record_trace(agent_id, BoardTraceAction.RECOMMENDATION_APPENDED,
                                recommendation.recommendation_id)
+
+    def _publish_risk_alert(self, agent_id: AgentId, item: RiskAlertItem) -> None:
+        with self._lock:
+            self._check_writer(agent_id)
+            if agent_id is not AgentId.RISK_ALERT:
+                raise BoardWriteDenied()
+            if item.request_id != self.context.request_id:
+                raise BoardConflict("risk alert belongs to another request")
+            self._check_evidence(item.evidence_ids)
+            self._claim_id(item.finding_id)
+            self._risk_alerts.append(item)
+            self._record_trace(agent_id, BoardTraceAction.RISK_ALERT_APPENDED, item.finding_id)
 
     def _transition(self, agent_id: AgentId, state: BoardState, reason: str | None = None) -> None:
         with self._lock:
@@ -334,6 +623,9 @@ class AgentBoardWriter:
 
     def publish_recommendation(self, recommendation: AgriculturalRecommendation) -> None:
         self.__board._publish_recommendation(self.__agent_id, recommendation)
+
+    def publish_risk_alert(self, item: RiskAlertItem) -> None:
+        self.__board._publish_risk_alert(self.__agent_id, item)
 
     def complete(self) -> None:
         self.__board._transition(self.__agent_id, BoardState.COMPLETED)

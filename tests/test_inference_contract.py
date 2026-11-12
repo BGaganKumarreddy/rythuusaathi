@@ -105,6 +105,23 @@ class InferenceContractTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ProviderFailure):
                     sanitized_chat_response(response, "fixture-secret")
 
+    async def test_sanitization_when_lazy_response_value_parsing_raises(self):
+        # When response_format is set and assistant message contains text that
+        # cannot be decoded by the framework's default JSON parser (e.g. markdown code blocks),
+        # sanitized_chat_response must not fail-closed on lazy .value property evaluation;
+        # it must preserve the original assistant text and response metadata.
+        fenced_text = "```json\n{\"summary\": \"test\"}\n```"
+        response = ChatResponse(
+            messages=[Message("assistant", [fenced_text])],
+            response_id="resp-123",
+            response_format={"type": "json_object"},
+            usage_details={"total_token_count": 42},
+        )
+        safe = sanitized_chat_response(response, "fixture-secret")
+        self.assertEqual(safe.response_id, "resp-123")
+        self.assertEqual(safe.usage_details, {"total_token_count": 42})
+        self.assertEqual(safe.messages[0].contents[0].text, fenced_text)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

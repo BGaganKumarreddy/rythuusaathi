@@ -11,7 +11,9 @@ from .board import (
     BoardTraceAction,
     BoardTraceEvent,
     BoardWriteDenied,
+    ClaimRelationship,
     FindingConflict,
+    classify_claim_relationship,
 )
 from .evidence import (
     ContentReference,
@@ -38,6 +40,16 @@ from .recommendations import (
     AgriculturalRecommendation,
     RecommendationCategory,
     RecommendationSupport,
+)
+from .risks import (
+    RiskAlertItem,
+    RiskCategory,
+    RiskEvidenceSufficiency,
+    RiskSeverity,
+    evaluate_disease_risks,
+    evaluate_pest_risks,
+    evaluate_weather_risks,
+    validate_safe_action,
 )
 from .registry import (
     CropCategory,
@@ -72,6 +84,8 @@ __all__ = [
     "BoardTraceAction",
     "BoardTraceEvent",
     "BoardWriteDenied",
+    "ClaimRelationship",
+    "classify_claim_relationship",
     "ContentReference",
     "ContextFact",
     "ContextResolutionRequest",
@@ -105,7 +119,15 @@ __all__ = [
     "RequestContext",
     "Resolution",
     "ResolutionStatus",
+    "RiskAlertItem",
+    "RiskCategory",
+    "RiskEvidenceSufficiency",
+    "RiskSeverity",
     "SoilInformation",
     "VarietyRecord",
     "WorkflowMetadata",
+    "evaluate_disease_risks",
+    "evaluate_pest_risks",
+    "evaluate_weather_risks",
+    "validate_safe_action",
 ]

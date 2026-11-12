@@ -13,18 +13,27 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from rythusaathi.agents import (
+    AuthenticatedCerebrasInference,
     AuthenticatedGeminiInference,
     AuthenticatedGroqInference,
+    DataGovInMarketProvider,
     FarmerRequest,
+    OpenMeteoWeatherProvider,
     RythuSaathiWorkflow,
     WorkflowMode,
+    default_coverage_resolver,
     empty_coverage_resolver,
 )
 from rythusaathi.domain.seed import CROP_REGISTRY
 from rythusaathi.credentials import CredentialService, WindowsCredentialStore
+from rythusaathi.inference.providers.cerebras import CerebrasProvider, CerebrasProviderConfig
 from rythusaathi.inference.providers.gemini import GeminiProvider, GeminiProviderConfig
 from rythusaathi.inference.providers.groq import GroqProvider, GroqProviderConfig
-from rythusaathi.inference.service import AuthenticatedGeminiService, AuthenticatedGroqService
+from rythusaathi.inference.service import (
+    AuthenticatedCerebrasService,
+    AuthenticatedGeminiService,
+    AuthenticatedGroqService,
+)
 from rythusaathi.local_auth import LocalAuthentication
 from rythusaathi.knowledge import (
     DocumentProcessor,
@@ -71,10 +80,6 @@ async def _run(args: argparse.Namespace) -> int:
     tenant_id = "local-cli"
     try:
         if args.mode == "gemini":
-            if not args.credential_id:
-                print("Gemini mode requires --credential-id; raw API keys are never accepted here.",
-                      file=sys.stderr)
-                return 2
             auth_database = args.auth_database or ROOT / "tmp" / "phase5-local-auth.sqlite3"
             auth = LocalAuthentication(auth_database)
             tenant_id_input = input("Tenant ID: ").strip()
@@ -85,14 +90,24 @@ async def _run(args: argparse.Namespace) -> int:
             user_id = identity.subject
             tenant_id = identity.tenant_id
             credential_service = CredentialService(auth_database, WindowsCredentialStore())
+            cid = args.credential_id
+            statuses = credential_service.list_status(identity, provider_id="gemini")
+            active = [s for s in statuses if s.state.value == "active"]
+            if cid:
+                valid_cids = {s.credential_id for s in active}
+                if cid not in valid_cids:
+                    cid = active[0].credential_id if active else None
+            elif active:
+                cid = active[0].credential_id
+            if not cid:
+                print("No active Gemini credential found. Run scripts/byok_cli.py add-gemini first.",
+                      file=sys.stderr)
+                auth.logout(session_token)
+                return 2
             provider = GeminiProvider(GeminiProviderConfig.from_environment())
             service = AuthenticatedGeminiService(auth, credential_service, provider)
-            inference = AuthenticatedGeminiInference(service, session_token, args.credential_id)
+            inference = AuthenticatedGeminiInference(service, session_token, cid)
         elif args.mode == "groq":
-            if not args.credential_id:
-                print("Groq mode requires --credential-id; raw API keys are never accepted here.",
-                      file=sys.stderr)
-                return 2
             auth_database = args.auth_database or ROOT / "tmp" / "phase5-local-auth.sqlite3"
             auth = LocalAuthentication(auth_database)
             tenant_id_input = input("Tenant ID: ").strip()
@@ -103,15 +118,77 @@ async def _run(args: argparse.Namespace) -> int:
             user_id = identity.subject
             tenant_id = identity.tenant_id
             credential_service = CredentialService(auth_database, WindowsCredentialStore())
+            cid = args.credential_id
+            statuses = credential_service.list_status(identity, provider_id="groq")
+            active = [s for s in statuses if s.state.value == "active"]
+            if cid:
+                valid_cids = {s.credential_id for s in active}
+                if cid not in valid_cids:
+                    cid = active[0].credential_id if active else None
+            elif active:
+                cid = active[0].credential_id
+            if not cid:
+                print("No active Groq credential found. Run scripts/byok_cli.py add-groq first.",
+                      file=sys.stderr)
+                auth.logout(session_token)
+                return 2
             provider = GroqProvider(GroqProviderConfig.from_environment())
             service = AuthenticatedGroqService(auth, credential_service, provider)
-            inference = AuthenticatedGroqInference(service, session_token, args.credential_id)
-        workflow = RythuSaathiWorkflow(resolver=empty_coverage_resolver(), knowledge=store)
+            inference = AuthenticatedGroqInference(service, session_token, cid)
+        elif args.mode == "cerebras":
+            auth_database = args.auth_database or ROOT / "tmp" / "phase5-local-auth.sqlite3"
+            auth = LocalAuthentication(auth_database)
+            tenant_id_input = input("Tenant ID: ").strip()
+            username = input("Username: ").strip()
+            password = getpass.getpass("Password: ")
+            session_token = auth.login(username, password, tenant_id_input)
+            identity = auth.authenticate(session_token)
+            user_id = identity.subject
+            tenant_id = identity.tenant_id
+            credential_service = CredentialService(auth_database, WindowsCredentialStore())
+            cid = args.credential_id
+            statuses = credential_service.list_status(identity, provider_id="cerebras")
+            active = [s for s in statuses if s.state.value == "active"]
+            if cid:
+                valid_cids = {s.credential_id for s in active}
+                if cid not in valid_cids:
+                    cid = active[0].credential_id if active else None
+            elif active:
+                cid = active[0].credential_id
+            if not cid:
+                print("No active Cerebras credential found. Run scripts/byok_cli.py add-cerebras first.",
+                      file=sys.stderr)
+                auth.logout(session_token)
+                return 2
+            provider = CerebrasProvider(CerebrasProviderConfig.from_environment())
+            service = AuthenticatedCerebrasService(auth, credential_service, provider)
+            inference = AuthenticatedCerebrasInference(service, session_token, cid)
+        weather_provider = OpenMeteoWeatherProvider()
+        market_provider = None
+        if "credential_service" in locals() and credential_service and "identity" in locals() and identity:
+            mandi_statuses = credential_service.list_status(identity, provider_id="data.gov.in")
+            mandi_active = [s for s in mandi_statuses if s.state.value == "active"]
+            if mandi_active:
+                market_provider = DataGovInMarketProvider(
+                    credential_service=credential_service,
+                    identity=identity,
+                    credential_id=mandi_active[0].credential_id,
+                )
+        workflow = RythuSaathiWorkflow(
+            resolver=default_coverage_resolver(),
+            knowledge=store,
+            weather_provider=weather_provider,
+            market_provider=market_provider,
+        )
         request = FarmerRequest(
             request_id=f"local-cli:{uuid.uuid4().hex}",
             user_id=user_id,
             tenant_id=tenant_id,
             query=query,
+            crop_query=args.crop,
+            location_query=args.location,
+            variety_query=args.variety,
+            growth_stage_query=args.growth_stage,
         )
         try:
             response = await workflow.run(
@@ -251,7 +328,8 @@ async def _run(args: argparse.Namespace) -> int:
               f"{response.provider_id or 'none'}; model: {response.model_id or 'none'}")
         print("\nAgent execution:")
         for result in response.agent_results:
-            print(f"- {result.agent_id.value}: {result.status.value} ({result.duration_ms:.1f} ms)")
+            prov_info = f" [provider={result.provider_id} model={result.model_id}]" if result.provider_id else ""
+            print(f"- {result.agent_id.value}: {result.status.value} ({result.duration_ms:.1f} ms){prov_info}")
         return 0
     finally:
         if auth is not None and session_token is not None:
@@ -262,16 +340,20 @@ async def _run(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the local RythuSaathi six-agent advisory workflow")
     parser.add_argument("question", nargs="*", help="farmer question; prompt interactively when omitted")
+    parser.add_argument("--crop", help="explicit crop query (e.g. cotton)")
+    parser.add_argument("--location", help="explicit location query (e.g. Adilabad)")
+    parser.add_argument("--growth-stage", help="explicit growth stage query (e.g. flowering)")
+    parser.add_argument("--variety", help="explicit crop variety query")
     parser.add_argument("--database", type=Path, help="SQLite vector index path")
     parser.add_argument("--lexical", action="store_true",
                         help="use the deterministic hashing baseline instead of pinned FastEmbed embeddings")
     parser.add_argument("--model-cache", type=Path, help="FastEmbed model snapshot cache")
     parser.add_argument("--mode", choices=[item.value for item in WorkflowMode],
                         default=WorkflowMode.DETERMINISTIC.value,
-                        help="deterministic by default; gemini uses Gemini 3.8 Flash (recommended primary runtime provider); groq also supported")
+                        help="deterministic by default; gemini uses Gemini 3.8 Flash; groq and cerebras also supported")
     parser.add_argument("--auth-database", type=Path,
-                        help="local identity/credential database for Gemini / Groq mode")
-    parser.add_argument("--credential-id", help="owner-scoped Gemini / Groq credential ID; never a raw API key")
+                        help="local identity/credential database for Gemini / Groq / Cerebras mode")
+    parser.add_argument("--credential-id", help="owner-scoped Gemini / Groq / Cerebras credential ID; never a raw API key")
     args = parser.parse_args()
     try:
         return asyncio.run(_run(args))

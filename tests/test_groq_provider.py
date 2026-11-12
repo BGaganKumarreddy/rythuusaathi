@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import pickle
+import time
 import unittest
 from enum import Enum
 from unittest.mock import AsyncMock, patch
@@ -1054,6 +1055,128 @@ class GroqProviderTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await task
         self.assertTrue(clients[0].is_closed())
+
+    def test_concurrent_reservations_are_thread_safe(self):
+        """Concurrent reservations from multiple threads must be thread-safe and adhere to TPM limit."""
+        provider = GroqProvider(GroqProviderConfig(tpm_limit_tokens=2000, tpm_headroom_tokens=500))
+        # Usable limit is 1500 tokens
+        tokens_per_call = 100
+        num_threads = 25
+
+        def reserve():
+            return provider.reserve_budget(tokens_per_call)
+
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            results = list(executor.map(lambda _: reserve(), range(num_threads)))
+
+        successful = [r for r in results if r is not None]
+        rejected = [r for r in results if r is None]
+
+        # Max successful reservations is limit // tokens_per_call = 15
+        self.assertEqual(len(successful), 15)
+        self.assertEqual(len(rejected), 10)
+        self.assertEqual(provider._remaining_budget(), 0)
+
+    async def test_settlement_on_failure_removes_reservation(self):
+        """When an inference request fails, its preflight reservation must be removed, not left lingering."""
+        async def fail_call(_request):
+            raise httpx2.ConnectError("connection failed")
+
+        provider = GroqProvider(
+            GroqProviderConfig(tpm_limit_tokens=3000, tpm_headroom_tokens=500),
+            sdk_client_factory=mock_sdk_factory(fail_call, []),
+        )
+        initial_remaining = provider._remaining_budget()
+        self.assertEqual(initial_remaining, 2500)
+
+        with self.assertRaises(ProviderFailure):
+            await provider.complete(
+                InferenceRequest([Message("user", ["test prompt"])]),
+                ProviderCredential(CANARY),
+            )
+
+        # After failure, reservation must be completely removed from rolling budget events
+        self.assertEqual(provider._remaining_budget(), initial_remaining)
+        self.assertEqual(len(provider._budget_events), 0)
+
+    def test_reserve_and_release_budget_lifecycle(self):
+        """Explicit reservation and release must accurately reflect in remaining budget."""
+        provider = GroqProvider(GroqProviderConfig(tpm_limit_tokens=5000, tpm_headroom_tokens=1000))
+        usable = 4000
+        self.assertEqual(provider._remaining_budget(), usable)
+
+        res1 = provider.reserve_budget(1200)
+        self.assertIsNotNone(res1)
+        self.assertEqual(provider._remaining_budget(), usable - 1200)
+
+        res2 = provider.reserve_budget(2000)
+        self.assertIsNotNone(res2)
+        self.assertEqual(provider._remaining_budget(), usable - 3200)
+
+        # Releasing res1 restores 1200 tokens immediately
+        provider.release_reservation(res1)
+        self.assertEqual(provider._remaining_budget(), usable - 2000)
+
+        # Releasing res2 restores the rest
+        provider.release_reservation(res2)
+        self.assertEqual(provider._remaining_budget(), usable)
+
+        # Invalid reservation requests return None
+        self.assertIsNone(provider.reserve_budget(0))
+        self.assertIsNone(provider.reserve_budget(-50))
+        self.assertIsNone(provider.reserve_budget(usable + 1))
+        # Releasing None is safe no-op
+        provider.release_reservation(None)
+        self.assertEqual(provider._remaining_budget(), usable)
+
+    async def test_insufficient_budget_local_rejection_without_network_dispatch(self):
+        """When TPM budget is exhausted, request is rejected locally before dispatching to provider."""
+        calls = []
+
+        async def handler(request):
+            calls.append(request)
+            return httpx2.Response(200, json=completion("should never happen"))
+
+        provider = GroqProvider(
+            GroqProviderConfig(tpm_limit_tokens=2000, tpm_headroom_tokens=500),
+            sdk_client_factory=mock_sdk_factory(handler, []),
+        )
+        # Usable budget is 1500 tokens. Reserve 1400 tokens.
+        provider.reserve_budget(1400)
+        self.assertEqual(provider._remaining_budget(), 100)
+
+        # A request needing > 100 tokens must fail locally
+        request = InferenceRequest(
+            [Message("user", ["sufficiently long prompt to exceed 100 budget cost"])],
+            options={"max_tokens": 128},
+        )
+        with self.assertRaises(ProviderFailure) as caught:
+            await provider.complete(request, ProviderCredential(CANARY))
+
+        self.assertEqual(caught.exception.diagnostic.code, InferenceDiagnosticCode.GROQ_TPM_BUDGET_EXCEEDED)
+        self.assertEqual(len(calls), 0)  # Zero network calls made
+
+    def test_budget_boundary_conditions_and_expiration(self):
+        """Test boundary conditions: exact budget match, zero remaining, and 60s expiration."""
+        provider = GroqProvider(GroqProviderConfig(tpm_limit_tokens=2000, tpm_headroom_tokens=500))
+        usable = 1500
+
+        # Exact budget match: reserve exactly usable budget
+        res_exact = provider.reserve_budget(usable)
+        self.assertIsNotNone(res_exact)
+        self.assertEqual(provider._remaining_budget(), 0)
+
+        # Zero remaining rejects any further reservation
+        self.assertIsNone(provider.reserve_budget(1))
+
+        # Test expiration: mock time advancing past 60.1 seconds
+        current_time = time.monotonic()
+        with patch("time.monotonic", return_value=current_time + 61.0):
+            # All past events expired, budget is fully restored
+            self.assertEqual(provider._remaining_budget(), usable)
+            res_new = provider.reserve_budget(500)
+            self.assertIsNotNone(res_new)
+            self.assertEqual(provider._remaining_budget(), usable - 500)
 
 
 if __name__ == "__main__":

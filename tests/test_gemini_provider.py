@@ -86,6 +86,7 @@ class GeminiProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(config.tpm_limit_tokens)
         self.assertEqual(config.tpm_headroom_tokens, 0)
         self.assertIsNone(config.rpd_limit)
+        self.assertEqual(config.max_retries, 1)
         self.assertFalse(config.has_quota_limits)
 
         with self.assertRaises(ValueError):
@@ -122,6 +123,10 @@ class GeminiProviderTests(unittest.IsolatedAsyncioTestCase):
             GeminiProviderConfig(rpd_limit=0)
         with self.assertRaises(ValueError):
             GeminiProviderConfig(thinking_level="")
+        with self.assertRaises(ValueError):
+            GeminiProviderConfig(max_retries=-1)
+        with self.assertRaises(ValueError):
+            GeminiProviderConfig(max_retries=True)
 
     def test_config_free_tier(self):
         # Baseline overridable AI Studio free tier guidelines
@@ -132,6 +137,7 @@ class GeminiProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(config.rpd_limit, 1500)
         self.assertEqual(config.default_max_output_tokens, 1024)
         self.assertIsNone(config.thinking_level)
+        self.assertEqual(config.max_retries, 1)
         self.assertTrue(config.has_quota_limits)
 
         # Overridden with specific AI Studio project plan limits
@@ -801,6 +807,32 @@ class GeminiProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.diagnostic.retry_decision, "retried")
         self.assertEqual(caught.exception.diagnostic.code, InferenceDiagnosticCode.GEMINI_SERVICE_UNAVAILABLE)
 
+    async def test_max_retries_zero_prevents_503_retry(self):
+        """When max_retries is 0, a 503 response is not retried and fails immediately."""
+        calls = 0
+
+        async def handler(_request):
+            nonlocal calls
+            calls += 1
+            return httpx2.Response(
+                503,
+                headers={"x-goog-request-id": f"attempt-{calls}"},
+                json={"error": {"code": 503, "message": "The model is overloaded.", "status": "UNAVAILABLE"}},
+            )
+
+        provider = GeminiProvider(
+            GeminiProviderConfig(max_retries=0), sdk_client_factory=mock_sdk_factory(handler, [])
+        )
+        req = InferenceRequest([Message("user", ["safe prompt"])], agent_name="scheme")
+
+        with self.assertRaises(ProviderFailure) as caught:
+            await provider.complete(req, ProviderCredential("key-no-retry"))
+
+        self.assertEqual(calls, 1)
+        self.assertEqual(caught.exception.diagnostic.retries_attempted, 0)
+        self.assertEqual(caught.exception.diagnostic.retry_decision, "not_retried")
+        self.assertEqual(caught.exception.diagnostic.code, InferenceDiagnosticCode.GEMINI_SERVICE_UNAVAILABLE)
+
     async def test_retry_after_handling_and_excessive_wait_rejection(self):
         """Retry-After is honored when within limits; excessive wait (e.g. 30s) aborts retry immediately."""
         # 1. Valid Retry-After: 0.5s is honored
@@ -1152,6 +1184,158 @@ class GeminiProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.provider, "gemini")
         self.assertEqual(len(sent_requests), 1)
         self.assertEqual(sent_requests[0]["response_format"], {"type": "json_object"})
+
+    async def test_http_503_error_body_full_extraction(self):
+        """HTTP 503 extracts error.code, error.status, error.message, Retry-After, and trace identifiers."""
+        async def handler(_request):
+            return httpx2.Response(
+                503,
+                headers={
+                    "x-goog-request-id": "goog-req-503-full",
+                    "x-goog-trace-id": "trace-999-xyz",
+                    "retry-after": "8.5",
+                    "content-type": "application/json",
+                },
+                json={
+                    "error": {
+                        "code": 503,
+                        "status": "UNAVAILABLE",
+                        "message": "The service is temporarily unavailable due to high load.",
+                    }
+                },
+            )
+
+        provider = GeminiProvider(
+            GeminiProviderConfig(max_retries=0), sdk_client_factory=mock_sdk_factory(handler, [])
+        )
+        req = InferenceRequest(
+            [Message("user", ["hi"])],
+            agent_name="crop",
+        )
+        with self.assertRaises(ProviderFailure) as caught:
+            await provider.complete(req, ProviderCredential("k-503-full"))
+
+        diag = caught.exception.diagnostic
+        self.assertEqual(diag.code, InferenceDiagnosticCode.GEMINI_SERVICE_UNAVAILABLE)
+        self.assertEqual(diag.stage, InferenceStage.PROVIDER_RESPONSE)
+        self.assertEqual(diag.http_status, 503)
+        self.assertEqual(diag.provider_error_code, 503)
+        self.assertEqual(diag.provider_error_status, "UNAVAILABLE")
+        self.assertEqual(diag.provider_error_message, "The service is temporarily unavailable due to high load.")
+        self.assertEqual(diag.retry_after_seconds, 8.5)
+        self.assertEqual(diag.request_id, "goog-req-503-full")
+        self.assertEqual(diag.trace_id, "trace-999-xyz")
+        hdrs = diag.response_headers_dict
+        self.assertEqual(hdrs.get("content-type"), "application/json")
+        self.assertEqual(hdrs.get("retry-after"), "8.5")
+
+    async def test_http_503_missing_error_body(self):
+        """HTTP 503 with an empty response body handles missing error structure cleanly."""
+        async def handler(_request):
+            return httpx2.Response(
+                503,
+                headers={"x-goog-request-id": "goog-req-503-empty"},
+                content=b"",
+            )
+
+        provider = GeminiProvider(
+            GeminiProviderConfig(max_retries=0), sdk_client_factory=mock_sdk_factory(handler, [])
+        )
+        req = InferenceRequest([Message("user", ["hi"])], agent_name="crop")
+        with self.assertRaises(ProviderFailure) as caught:
+            await provider.complete(req, ProviderCredential("k-503-empty"))
+
+        diag = caught.exception.diagnostic
+        self.assertEqual(diag.code, InferenceDiagnosticCode.GEMINI_SERVICE_UNAVAILABLE)
+        self.assertEqual(diag.stage, InferenceStage.PROVIDER_RESPONSE)
+        self.assertEqual(diag.http_status, 503)
+        self.assertIsNone(diag.provider_error_code)
+        self.assertIsNone(diag.provider_error_status)
+        self.assertIsNone(diag.provider_error_message)
+        self.assertEqual(diag.request_id, "goog-req-503-empty")
+
+    async def test_http_503_malformed_html_error_body(self):
+        """HTTP 503 with HTML error body from a reverse proxy or frontend does not crash."""
+        async def handler(_request):
+            return httpx2.Response(
+                503,
+                headers={"goog-request-id": "goog-req-503-html"},
+                text="<html><head><title>503 Service Unavailable</title></head><body><h1>Frontend Error</h1></body></html>",
+            )
+
+        provider = GeminiProvider(
+            GeminiProviderConfig(max_retries=0), sdk_client_factory=mock_sdk_factory(handler, [])
+        )
+        req = InferenceRequest([Message("user", ["hi"])], agent_name="crop")
+        with self.assertRaises(ProviderFailure) as caught:
+            await provider.complete(req, ProviderCredential("k-503-html"))
+
+        diag = caught.exception.diagnostic
+        self.assertEqual(diag.code, InferenceDiagnosticCode.GEMINI_SERVICE_UNAVAILABLE)
+        self.assertEqual(diag.stage, InferenceStage.PROVIDER_RESPONSE)
+        self.assertEqual(diag.http_status, 503)
+        self.assertIsNone(diag.provider_error_code)
+        self.assertIsNone(diag.provider_error_status)
+        self.assertIsNone(diag.provider_error_message)
+        self.assertEqual(diag.request_id, "goog-req-503-html")
+
+    async def test_http_503_malformed_json_syntax(self):
+        """HTTP 503 with corrupted/truncated JSON syntax handles error extraction cleanly."""
+        async def handler(_request):
+            return httpx2.Response(
+                503,
+                headers={"x-goog-request-id": "goog-req-503-trunc"},
+                text='{"error": {"code": 503, "status": "UNAVAIL',
+            )
+
+        provider = GeminiProvider(
+            GeminiProviderConfig(max_retries=0), sdk_client_factory=mock_sdk_factory(handler, [])
+        )
+        req = InferenceRequest([Message("user", ["hi"])], agent_name="crop")
+        with self.assertRaises(ProviderFailure) as caught:
+            await provider.complete(req, ProviderCredential("k-503-trunc"))
+
+        diag = caught.exception.diagnostic
+        self.assertEqual(diag.code, InferenceDiagnosticCode.GEMINI_SERVICE_UNAVAILABLE)
+        self.assertEqual(diag.http_status, 503)
+        self.assertIsNone(diag.provider_error_code)
+        self.assertIsNone(diag.provider_error_status)
+        self.assertIsNone(diag.provider_error_message)
+        self.assertEqual(diag.request_id, "goog-req-503-trunc")
+
+    async def test_response_headers_never_expose_secrets(self):
+        """Sanitized response headers drop authorization, api-key, cookie, and secret tokens."""
+        async def handler(_request):
+            return httpx2.Response(
+                503,
+                headers={
+                    "x-goog-request-id": "goog-req-safe-1",
+                    "authorization": "Bearer AIzaSySecretKey999",
+                    "x-api-key": "secret-key-12345",
+                    "set-cookie": "session_token=xyzabc",
+                    "content-type": "application/json",
+                },
+                json={"error": {"code": 503, "status": "UNAVAILABLE", "message": "Overloaded"}},
+            )
+
+        provider = GeminiProvider(
+            GeminiProviderConfig(max_retries=0), sdk_client_factory=mock_sdk_factory(handler, [])
+        )
+        req = InferenceRequest([Message("user", ["hi"])], agent_name="crop")
+        with self.assertRaises(ProviderFailure) as caught:
+            await provider.complete(req, ProviderCredential("k-safe"))
+
+        diag = caught.exception.diagnostic
+        hdrs = diag.response_headers_dict
+        self.assertNotIn("authorization", hdrs)
+        self.assertNotIn("x-api-key", hdrs)
+        self.assertNotIn("set-cookie", hdrs)
+        for k, v in hdrs.items():
+            self.assertNotIn("AIzaSy", v)
+            self.assertNotIn("secret-key", v)
+            self.assertNotIn("xyzabc", v)
+        self.assertEqual(hdrs.get("x-goog-request-id"), "goog-req-safe-1")
+        self.assertEqual(hdrs.get("content-type"), "application/json")
 
 
 if __name__ == "__main__":

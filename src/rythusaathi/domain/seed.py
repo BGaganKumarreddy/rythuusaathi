@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from .registry import (CropCategory, CropRecord, CropRegistry, GrowthStageRecord,
+from .registry import (CoverageRegistry, CropCategory, CropRecord, CropRegistry, GrowthStageRecord,
                        LocationRecord, LocationRegistry, NameVariant, RegistryLevel,
                        RegistryMetadata, VarietyRecord)
 
@@ -70,6 +70,44 @@ COTTON = CropRecord(
         source_reference="https://www.icar.org.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
         applicable_region_ids=("location:state:in-pb",),
     ),),
+    growth_stages=(
+        GrowthStageRecord(
+            stage_id="seedling",
+            names=(NameVariant(value="seedling"), NameVariant(value="germination")),
+            order=10,
+            source_reference="https://www.icar.org.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+        ),
+        GrowthStageRecord(
+            stage_id="vegetative",
+            names=(NameVariant(value="vegetative"), NameVariant(value="vegetative growth")),
+            order=20,
+            source_reference="https://www.icar.org.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+        ),
+        GrowthStageRecord(
+            stage_id="squaring",
+            names=(NameVariant(value="squaring"), NameVariant(value="square formation"), NameVariant(value="square")),
+            order=30,
+            source_reference="https://www.icar.org.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+        ),
+        GrowthStageRecord(
+            stage_id="flowering",
+            names=(NameVariant(value="flowering"), NameVariant(value="bloom"), NameVariant(value="flower")),
+            order=40,
+            source_reference="https://www.icar.org.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+        ),
+        GrowthStageRecord(
+            stage_id="boll-development",
+            names=(NameVariant(value="boll development"), NameVariant(value="boll formation"), NameVariant(value="boll")),
+            order=50,
+            source_reference="https://www.icar.org.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+        ),
+        GrowthStageRecord(
+            stage_id="maturity",
+            names=(NameVariant(value="maturity"), NameVariant(value="boll opening"), NameVariant(value="boll bursting")),
+            order=60,
+            source_reference="https://www.icar.org.in/sites/default/files/Circulars/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf",
+        ),
+    ),
     source_references=("https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:30042843-2",),
     effective_from=_EFFECTIVE_FROM,
 )
@@ -139,6 +177,26 @@ LOCATION_RECORDS = (
     LocationRecord(location_id="location:district:in-tg-nalgonda", name="Nalgonda",
                    level=RegistryLevel.DISTRICT, parent_id=_STATE["tg"], timezone="Asia/Kolkata",
                    source_reference="https://nalgonda.telangana.gov.in/"),
+    LocationRecord(location_id="location:district:in-tg-adilabad", name="Adilabad",
+                   level=RegistryLevel.DISTRICT, parent_id=_STATE["tg"], timezone="Asia/Kolkata",
+                   source_reference="https://adilabad.telangana.gov.in/"),
 )
 
 LOCATION_REGISTRY = LocationRegistry(LOCATION_REGISTRY_METADATA, LOCATION_RECORDS)
+
+COVERAGE_REGISTRY_METADATA = RegistryMetadata(
+    registry_id="rythusaathi:coverage-seed",
+    version=SEED_VERSION,
+    effective_from=_EFFECTIVE_FROM,
+    source_reference="https://icar.org.in/",
+    scope_note="Seeded validated coverage pairs for supported crops and locations.",
+)
+
+SEEDED_COVERAGE_PAIRS: tuple[tuple[str, str], ...] = (
+    ("crop:gossypium-hirsutum", "location:district:in-tg-adilabad"),
+    ("crop:oryza-sativa", "location:district:in-tg-nalgonda"),
+    ("crop:oryza-sativa", "location:district:in-pb-ludhiana"),
+    ("crop:triticum-aestivum", "location:district:in-pb-ludhiana"),
+)
+
+SEEDED_COVERAGE_REGISTRY = CoverageRegistry(COVERAGE_REGISTRY_METADATA, SEEDED_COVERAGE_PAIRS)

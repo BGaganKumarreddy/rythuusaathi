@@ -23,6 +23,7 @@ from ..inference.contracts import (
     ProviderResponse,
 )
 from ..inference.service import (
+    AuthenticatedCerebrasService,
     AuthenticatedGeminiService,
     AuthenticatedGroqService,
     AuthenticatedIdentityMismatch,
@@ -77,6 +78,24 @@ class AuthenticatedWorkflowInference:
         return self.__service.model_id
 
     @property
+    def remaining_budget_tokens(self) -> int | None:
+        """Remaining tokens in rolling budget window, when tracked by provider."""
+        return getattr(self.__service, "remaining_budget_tokens", None)
+
+    def reserve_budget(self, token_count: int) -> list[float | int] | None:
+        """Reserve a block of tokens on the active authenticated service."""
+        fn = getattr(self.__service, "reserve_budget", None)
+        if callable(fn):
+            return fn(token_count)
+        return None
+
+    def release_reservation(self, reservation: list[float | int] | None) -> None:
+        """Release a previously acquired reservation on the active authenticated service."""
+        fn = getattr(self.__service, "release_reservation", None)
+        if callable(fn):
+            fn(reservation)
+
+    @property
     def provider_id(self) -> str:
         return getattr(self.__service, "provider_id", "unknown")
 
@@ -123,6 +142,7 @@ class AuthenticatedWorkflowInference:
                 InferenceDiagnostic(
                     code=InferenceDiagnosticCode.IDENTITY_MISMATCH,
                     stage=InferenceStage.IDENTITY_BINDING,
+                    provider=self.provider_id,
                     model_id=self.model_id,
                     agent_name=request.agent_name,
                 ),
@@ -133,6 +153,7 @@ class AuthenticatedWorkflowInference:
                 InferenceDiagnostic(
                     code=InferenceDiagnosticCode.SESSION_AUTHENTICATION_FAILED,
                     stage=InferenceStage.SESSION_AUTHENTICATION,
+                    provider=self.provider_id,
                     model_id=self.model_id,
                     agent_name=request.agent_name,
                 ),
@@ -143,6 +164,7 @@ class AuthenticatedWorkflowInference:
                 InferenceDiagnostic(
                     code=InferenceDiagnosticCode.CREDENTIAL_DECRYPTION_FAILED,
                     stage=InferenceStage.CREDENTIAL_DECRYPTION,
+                    provider=self.provider_id,
                     model_id=self.model_id,
                     agent_name=request.agent_name,
                 ),
@@ -154,6 +176,7 @@ class AuthenticatedWorkflowInference:
                 InferenceDiagnostic(
                     code=InferenceDiagnosticCode.CREDENTIAL_UNAVAILABLE,
                     stage=InferenceStage.CREDENTIAL_LOOKUP,
+                    provider=self.provider_id,
                     model_id=self.model_id,
                     agent_name=request.agent_name,
                 ),
@@ -164,12 +187,31 @@ class AuthenticatedWorkflowInference:
                 InferenceDiagnostic(
                     code=InferenceDiagnosticCode.CREDENTIAL_SERVICE_UNAVAILABLE,
                     stage=InferenceStage.CREDENTIAL_SERVICE,
+                    provider=self.provider_id,
                     model_id=self.model_id,
                     agent_name=request.agent_name,
                 ),
             )
         except Exception:
-            failure = ProviderFailure(ProviderFailureKind.PROVIDER_FAILURE)
+            code = (
+                InferenceDiagnosticCode.CEREBRAS_PROVIDER_FAILURE
+                if self.provider_id == "cerebras"
+                else (
+                    InferenceDiagnosticCode.GEMINI_PROVIDER_FAILURE
+                    if self.provider_id == "gemini"
+                    else InferenceDiagnosticCode.GROQ_PROVIDER_FAILURE
+                )
+            )
+            failure = ProviderFailure(
+                ProviderFailureKind.PROVIDER_FAILURE,
+                InferenceDiagnostic(
+                    code=code,
+                    stage=InferenceStage.PROVIDER_TRANSPORT,
+                    provider=self.provider_id,
+                    model_id=self.model_id,
+                    agent_name=request.agent_name,
+                ),
+            )
         if failure is not None:
             self._record_diagnostic(failure.diagnostic)
             # Detach the internal authentication/store exception from this safe failure.
@@ -198,6 +240,17 @@ class AuthenticatedGeminiInference(AuthenticatedWorkflowInference):
 
     def __str__(self) -> str:
         return "<authenticated Gemini inference access>"
+
+
+class AuthenticatedCerebrasInference(AuthenticatedWorkflowInference):
+    """Redacted request-scoped access to the authenticated Cerebras service."""
+
+    def __repr__(self) -> str:
+        return "AuthenticatedCerebrasInference(<session and credential redacted>)"
+
+    def __str__(self) -> str:
+        return "<authenticated Cerebras inference access>"
+
 
 
 IntentName = Literal[
@@ -313,20 +366,29 @@ async def call_structured(
         expected_user_id=expected_user_id,
         expected_tenant_id=expected_tenant_id,
     )
-    if result.provider not in {"groq", "gemini"} or not result.model_id:
+    if result.provider not in {"groq", "gemini", "cerebras"} or not result.model_id:
         raise ProviderFailure(ProviderFailureKind.MALFORMED_RESPONSE)
-    if isinstance(getattr(result.response, "value", None), response_model):
-        return result.response.value
+    try:
+        val = getattr(result.response, "value", None)
+        if isinstance(val, response_model):
+            return val
+    except Exception:
+        pass
     finish_reason = getattr(result.response, "finish_reason", None)
+    malformed_diag_code = (
+        InferenceDiagnosticCode.CEREBRAS_MALFORMED_RESPONSE
+        if result.provider == "cerebras"
+        else (
+            InferenceDiagnosticCode.GEMINI_MALFORMED_RESPONSE
+            if result.provider == "gemini"
+            else InferenceDiagnosticCode.GROQ_MALFORMED_RESPONSE
+        )
+    )
     try:
         text = _assistant_text(result)
     except ProviderFailure:
         diag = InferenceDiagnostic(
-            code=(
-                InferenceDiagnosticCode.GEMINI_MALFORMED_RESPONSE
-                if result.provider == "gemini"
-                else InferenceDiagnosticCode.GROQ_MALFORMED_RESPONSE
-            ),
+            code=malformed_diag_code,
             stage=InferenceStage.RESPONSE_VALIDATION,
             provider=result.provider,
             model_id=result.model_id,
@@ -339,18 +401,29 @@ async def call_structured(
                 if finish_reason == "length"
                 else "empty_assistant_message"
             ),
+            validation_category=(
+                "provider_truncation"
+                if finish_reason == "length"
+                else "schema_validation_failure"
+            ),
             elapsed_seconds=result.usage.elapsed_seconds if result.usage else None,
+            http_status=result.usage.http_status if result.usage else 200,
+            output_token_limit=result.usage.output_token_limit if result.usage else None,
+            estimated_input_tokens=result.usage.estimated_input_tokens if result.usage else None,
+            budget_limit_tokens=result.usage.budget_limit_tokens if result.usage else None,
+            budget_remaining_tokens=result.usage.budget_remaining_tokens if result.usage else None,
         )
         raise ProviderFailure(ProviderFailureKind.MALFORMED_RESPONSE, diag) from None
+    raw_json = text.strip()
+    if raw_json.startswith("```"):
+        lines = raw_json.splitlines()
+        if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].strip().startswith("```"):
+            raw_json = "\n".join(lines[1:-1]).strip()
     try:
-        data = json.loads(text)
+        data = json.loads(raw_json)
     except (ValueError, TypeError, json.JSONDecodeError):
         diag = InferenceDiagnostic(
-            code=(
-                InferenceDiagnosticCode.GEMINI_MALFORMED_RESPONSE
-                if result.provider == "gemini"
-                else InferenceDiagnosticCode.GROQ_MALFORMED_RESPONSE
-            ),
+            code=malformed_diag_code,
             stage=InferenceStage.RESPONSE_VALIDATION,
             provider=result.provider,
             model_id=result.model_id,
@@ -359,18 +432,28 @@ async def call_structured(
             finish_reason=getattr(result.response, "finish_reason", None),
             request_id=getattr(result.response, "response_id", None),
             parsing_outcome="json_decode_failed",
+            validation_category=(
+                "provider_truncation"
+                if getattr(result.response, "finish_reason", None) == "length"
+                else "json_decode_failure"
+            ),
             elapsed_seconds=result.usage.elapsed_seconds if result.usage else None,
+            http_status=result.usage.http_status if result.usage else 200,
+            output_token_limit=result.usage.output_token_limit if result.usage else None,
+            estimated_input_tokens=result.usage.estimated_input_tokens if result.usage else None,
+            budget_limit_tokens=result.usage.budget_limit_tokens if result.usage else None,
+            budget_remaining_tokens=result.usage.budget_remaining_tokens if result.usage else None,
         )
         raise ProviderFailure(ProviderFailureKind.MALFORMED_RESPONSE, diag) from None
     try:
         return response_model.model_validate(data)
-    except ValidationError:
+    except ValidationError as exc:
+        sanitized_errors = "; ".join(
+            f"{'.'.join(str(loc) for loc in err.get('loc', ()))}: {err.get('msg', '')}"
+            for err in exc.errors()
+        )
         diag = InferenceDiagnostic(
-            code=(
-                InferenceDiagnosticCode.GEMINI_MALFORMED_RESPONSE
-                if result.provider == "gemini"
-                else InferenceDiagnosticCode.GROQ_MALFORMED_RESPONSE
-            ),
+            code=malformed_diag_code,
             stage=InferenceStage.RESPONSE_VALIDATION,
             provider=result.provider,
             model_id=result.model_id,
@@ -379,7 +462,14 @@ async def call_structured(
             finish_reason=getattr(result.response, "finish_reason", None),
             request_id=getattr(result.response, "response_id", None),
             parsing_outcome="pydantic_validation_failed",
+            validation_category="pydantic_schema_validation_failure",
+            provider_error_message=sanitized_errors[:300],
             elapsed_seconds=result.usage.elapsed_seconds if result.usage else None,
+            http_status=result.usage.http_status if result.usage else 200,
+            output_token_limit=result.usage.output_token_limit if result.usage else None,
+            estimated_input_tokens=result.usage.estimated_input_tokens if result.usage else None,
+            budget_limit_tokens=result.usage.budget_limit_tokens if result.usage else None,
+            budget_remaining_tokens=result.usage.budget_remaining_tokens if result.usage else None,
         )
         raise ProviderFailure(ProviderFailureKind.MALFORMED_RESPONSE, diag) from None
 
@@ -404,6 +494,28 @@ def _assistant_text(result: ProviderResponse) -> str:
 
 
 def validate_evidence_ids(statements: list[GroundedStatement],
-                          allowed_ids: set[str]) -> None:
+                          allowed_ids: set[str],
+                          *,
+                          provider: str | None = None,
+                          model_id: str | None = None,
+                          agent_name: str | None = None) -> None:
     if any(not set(item.evidence_ids) <= allowed_ids for item in statements):
-        raise ProviderFailure(ProviderFailureKind.MALFORMED_RESPONSE)
+        malformed_diag_code = (
+            InferenceDiagnosticCode.CEREBRAS_MALFORMED_RESPONSE
+            if provider == "cerebras"
+            else (
+                InferenceDiagnosticCode.GEMINI_MALFORMED_RESPONSE
+                if provider == "gemini"
+                else InferenceDiagnosticCode.GROQ_MALFORMED_RESPONSE
+            )
+        )
+        diag = InferenceDiagnostic(
+            code=malformed_diag_code,
+            stage=InferenceStage.RESPONSE_VALIDATION,
+            provider=provider or "workflow",
+            model_id=model_id,
+            agent_name=agent_name,
+            parsing_outcome="evidence_citation_failed",
+            validation_category="evidence_citation_validation_failure",
+        )
+        raise ProviderFailure(ProviderFailureKind.MALFORMED_RESPONSE, diag)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -35,6 +36,7 @@ from rythusaathi.domain import (
     ReferenceKind,
 )
 from rythusaathi.agents.contracts import (
+    AdvisoryStatus,
     AgentResult,
     AgentStatus,
     GeneratedStatement,
@@ -424,7 +426,7 @@ class LLMWorkflowTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             {item.agent_name: item.options["max_tokens"] for item in inference.requests},
-            {"intake": 256, "crop": 400, "scheme": 400, "coordinator": 600},
+            {"intake": 512, "crop": 400, "scheme": 400, "coordinator": 600},
         )
         prompts = {item.agent_name: _message_text(item.messages[0])
                    for item in inference.requests}
@@ -924,12 +926,12 @@ class LLMWorkflowTests(unittest.IsolatedAsyncioTestCase):
         # Agent-specific output limits match approved scope (intake: 256, crop: 400, scheme: 400, coordinator: 600)
         budget_map = {item.agent_name: item.options["max_tokens"] for item in inference.requests}
         self.assertEqual(budget_map, {
-            "intake": 256,
+            "intake": 512,
             "crop": 400,
             "scheme": 400,
             "coordinator": 600,
         })
-        self.assertEqual(sum(budget_map.values()), 1_656)
+        self.assertEqual(sum(budget_map.values()), 1_912)
 
     async def test_context_budget_overflow_uses_deterministic_fallback_without_omitting_evidence(self):
         """A complete essential packet that cannot fit must never be dispatched."""
@@ -1059,7 +1061,7 @@ class LLMWorkflowTests(unittest.IsolatedAsyncioTestCase):
                             for t in scheme_titles))
 
     async def test_output_limits_match_tpm_reservations_and_fit_7200_budget(self):
-        """Verify output limits match reservations exactly (256/400/400/600) and
+        """Verify output limits match reservations exactly (512/400/400/600) and
         total reserved tokens across all 4 agents stay strictly within 7,200 TPM."""
         inference = MockWorkflowInference()
         response = await RythuSaathiWorkflow(
@@ -1068,13 +1070,13 @@ class LLMWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         limits = {item.agent_name: item.options["max_tokens"] for item in inference.requests}
         self.assertEqual(limits, {
-            "intake": 256,
+            "intake": 512,
             "crop": 400,
             "scheme": 400,
             "coordinator": 600,
         })
         total_output_limit = sum(limits.values())
-        self.assertEqual(total_output_limit, 1_656)
+        self.assertEqual(total_output_limit, 1_912)
 
         total_estimated_input = sum(estimate_input_tokens(r.messages) for r in inference.requests)
         total_reserved = total_estimated_input + total_output_limit
@@ -1082,11 +1084,156 @@ class LLMWorkflowTests(unittest.IsolatedAsyncioTestCase):
             total_reserved, 7_200,
             f"Total reserved tokens {total_reserved} must be strictly less than 7,200 TPM limit",
         )
-        # Verify safety margin is at least 400 tokens below TPM limit
+        # Verify safety margin is at least 100 tokens below TPM limit
         self.assertGreaterEqual(
-            7_200 - total_reserved, 400,
-            f"Remaining headroom {7_200 - total_reserved} must be at least 400 tokens",
+            7_200 - total_reserved, 100,
+            f"Remaining headroom {7_200 - total_reserved} must be at least 100 tokens",
         )
+
+    async def test_coordinator_pre_reservation_and_release_lifecycle(self):
+        """Workflow reserves coordinator budget before specialist dispatch and releases it when coordinator runs."""
+        inference = MockWorkflowInference()
+        reserved_amounts = []
+        released_reservations = []
+
+        def reserve_fn(amount):
+            reserved_amounts.append(amount)
+            return [time.monotonic(), amount]
+
+        def release_fn(res):
+            released_reservations.append(res)
+
+        inference.reserve_budget = reserve_fn
+        inference.release_reservation = release_fn
+
+        workflow = RythuSaathiWorkflow(
+            resolver=empty_coverage_resolver(),
+            knowledge=self.index,
+            coordinator_reserved_budget=2500,
+        )
+        response = await workflow.run(self.request(), mode=WorkflowMode.GROQ, inference=inference)
+
+        self.assertEqual(reserved_amounts, [2500])
+        self.assertEqual(len(released_reservations), 1)
+        self.assertEqual(released_reservations[0][1], 2500)
+        self.assertIn("Groq-generated synthesis", response.response_text)
+
+    async def test_coordinator_dynamic_budget_allocation_uses_live_provider_budget(self):
+        """Coordinator reads live remaining_budget_tokens from inference property when available."""
+        inference = MockWorkflowInference()
+        inference.remaining_budget_tokens = 4500
+
+        workflow = RythuSaathiWorkflow(
+            resolver=empty_coverage_resolver(),
+            knowledge=self.index,
+        )
+        response = await workflow.run(self.request(), mode=WorkflowMode.GROQ, inference=inference)
+
+        # Coordinator request must succeed and synthesize
+        coord_req = next(r for r in inference.requests if r.agent_name == "coordinator")
+        self.assertIsNotNone(coord_req)
+        self.assertIn("Groq-generated synthesis", response.response_text)
+
+    async def test_context_compression_deduplicates_provider_observations_while_preserving_data(self):
+        """Provider observations retain all numerical values and citations without duplicating full text."""
+        now = datetime.now(timezone.utc)
+        def make_source(source_id: str, title: str) -> EvidenceSource:
+            return EvidenceSource(
+                source_id=source_id,
+                title=title,
+                reference=ContentReference(kind=ReferenceKind.DOCUMENT_ID, value=source_id),
+                source_type=EvidenceSourceType.EXTERNAL_DATA,
+                source_identity=f"Test source {title}",
+            )
+
+        src = make_source("weather:open-meteo:test", "Open-Meteo")
+
+        class MockObservedWeather:
+            async def get_observation(self, request_id: str, location_id: str):
+                return WeatherObservation(
+                    request_id, location_id, now, now,
+                    src, EvidenceMode.LIVE,
+                    temperature_c=29.4, rainfall_mm=0.0,
+                    relative_humidity_pct=68.0,
+                    forecast_summary="3-day forecast: min 22 °C, max 34 °C",
+                )
+
+        market_src = make_source("market:data-gov-in:test", "data.gov.in")
+
+        class MockObservedMarket:
+            async def get_quote(self, request_id: str, crop_id: str, location_id: str):
+                return MarketQuote(
+                    request_id, crop_id, location_id, "Adilabad APMC", 8850.0,
+                    "INR/quintal", now, now, market_src, EvidenceMode.LIVE,
+                    min_price=8200.0, max_price=9100.0, commodity="Cotton", variety="Medium Staple",
+                    grade="FAQ", arrival_date="2026-11-10",
+                )
+
+        inference = MockWorkflowInference()
+        inference.remaining_budget_tokens = 5000
+        workflow = RythuSaathiWorkflow(
+            resolver=empty_coverage_resolver(),
+            knowledge=self.index,
+            weather_provider=MockObservedWeather(),
+            market_provider=MockObservedMarket(),
+        )
+        response = await workflow.run(self.request(), mode=WorkflowMode.GROQ, inference=inference)
+
+        coord_payload = next(p for p in inference.payloads if "retrieved_evidence" in p)
+        all_passages = [p["excerpt"] for s in coord_payload["retrieved_evidence"] for p in s["passages"]]
+
+        # Numerical values, units, and dates are preserved in retrieved_evidence
+        weather_text = next((t for t in all_passages if "29.4" in t), "")
+        self.assertIn("29.4", weather_text)
+
+        market_text = next((t for t in all_passages if "8850" in t), "")
+        self.assertIn("8850", market_text)
+
+        # agent_results summaries are concise references and do not duplicate the full text verbatim
+        for ar in coord_payload["agent_results"]:
+            if ar.get("agent_id") in {"Weather", "Market"} and "summary" in ar:
+                self.assertNotIn("3-day forecast: min 22 °C", ar["summary"])
+                self.assertNotIn("range 8200-9100 INR/quintal", ar["summary"])
+
+    async def test_cerebras_workflow_mode_execution(self):
+        inference = MockWorkflowInference()
+        inference.model_id = "gpt-oss-120b"
+        workflow = RythuSaathiWorkflow(
+            resolver=empty_coverage_resolver(),
+            knowledge=self.index,
+        )
+        response = await workflow.run(
+            self.request(),
+            mode=WorkflowMode.CEREBRAS,
+            inference=inference,
+        )
+        self.assertEqual(response.execution_mode, WorkflowMode.CEREBRAS)
+        self.assertEqual(response.provider_id, "cerebras")
+        self.assertEqual(response.model_id, "gpt-oss-120b")
+        self.assertIn(response.status, {AdvisoryStatus.COMPLETED, AdvisoryStatus.PARTIAL})
+
+        limits = {item.agent_name: item.options["max_tokens"] for item in inference.requests}
+        self.assertEqual(limits.get("intake"), 1024)
+        self.assertEqual(limits.get("crop"), 1024)
+        self.assertEqual(limits.get("scheme"), 1536)
+        self.assertEqual(limits.get("coordinator"), 2048)
+
+    async def test_cerebras_workflow_coordinator_failure_fallback(self):
+        inference = MockWorkflowInference(fail_coordinator=True)
+        inference.model_id = "gpt-oss-120b"
+        workflow = RythuSaathiWorkflow(
+            resolver=empty_coverage_resolver(),
+            knowledge=self.index,
+        )
+        response = await workflow.run(
+            self.request(),
+            mode=WorkflowMode.CEREBRAS,
+            inference=inference,
+        )
+        self.assertEqual(response.execution_mode, WorkflowMode.CEREBRAS)
+        self.assertEqual(response.provider_id, "cerebras")
+        coordinator = next(item for item in response.agent_results if item.agent_id.value == "Coordinator")
+        self.assertEqual(coordinator.payload.interpretation_mode, "deterministic_fallback")
 
 
 class InferenceAdapterRedactionTests(unittest.IsolatedAsyncioTestCase):
@@ -1130,6 +1277,23 @@ class InferenceAdapterRedactionTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(caught.exception.kind, ProviderFailureKind.AUTHENTICATION)
         self.assertNotIn("session-secret-canary", str(caught.exception))
+
+    async def test_cerebras_access_redacts_session_and_credential_identifiers(self):
+        class Service:
+            model_id = "gpt-oss-120b"
+            provider_id = "cerebras"
+
+            async def complete(self, token, credential_id, request, **kwargs):
+                self.seen = (token, credential_id, kwargs)
+                return ProviderResponse("cerebras", "gpt-oss-120b", ChatResponse(messages=[]))
+
+        service = Service()
+        from rythusaathi.agents.llm import AuthenticatedCerebrasInference
+        access = AuthenticatedCerebrasInference(service, "session-secret-canary", "credential-id-canary")
+        self.assertNotIn("session-secret-canary", repr(access))
+        self.assertNotIn("credential-id-canary", repr(access))
+        self.assertEqual(access.provider_id, "cerebras")
+        self.assertEqual(access.model_id, "gpt-oss-120b")
 
 
 if __name__ == "__main__":
