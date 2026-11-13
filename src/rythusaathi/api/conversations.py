@@ -60,7 +60,7 @@ _RESET_PATTERNS = [
 _FOLLOWUP_OBSERVATION_PATTERNS = [
     re.compile(r"\b(?:spreading|spreading fast|increasing|getting worse|more spots|turning brown|drying up|curling|wilting)\b", re.I),
     re.compile(r"\b(?:yellowing|yellow leaves|chlorosis)\b", re.I),
-    re.compile(r"\b(?:brown spots|leaf spots|blast lesions)\b", re.I),
+    re.compile(r"\b(?:brown leaf spots|brown spots|leaf spots|blast lesions)\b", re.I),
     re.compile(r"\b(?:pest|insects|caterpillar|borer|holes)\b", re.I),
 ]
 

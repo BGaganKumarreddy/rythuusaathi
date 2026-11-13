@@ -419,7 +419,7 @@ def evaluate_disease_risks(
                 )
             )
             has_symptom_trigger = any(
-                term in query_lower for term in ("blast", "spindle", "lesion", "leaf spot", "neck blast")
+                term in query_lower for term in ("blast", "spindle", "neck blast", "leaf blast", "blast lesion")
             )
             is_active_risk = has_environmental_trigger or has_symptom_trigger
 
