@@ -5,8 +5,8 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4-38B2AC.svg)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/backend%20tests-512%20passed-brightgreen.svg)]()
-[![Frontend Tests](https://img.shields.io/badge/frontend%20tests-24%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/backend%20tests-510%20passed-brightgreen.svg)]()
+[![Frontend Tests](https://img.shields.io/badge/frontend%20tests-26%20passed-brightgreen.svg)]()
 
 > **RythuSaathi** (*Farmer's Companion*) is an academic, production-grade agricultural multi-agent AI system with a modern React SaaS frontend. It delivers verified, multi-domain agronomic intelligence—integrating real-time weather observations, localized crop protection guidelines, official mandi commodity prices, and government welfare schemes—grounded in scientific research to eliminate model hallucinations.
 

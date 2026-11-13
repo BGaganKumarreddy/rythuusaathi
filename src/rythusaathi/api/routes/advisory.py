@@ -194,7 +194,7 @@ async def create_advisory(
     background_vulnerabilities: list[RiskAlertSchema] = []
 
     for ar in response.agent_results:
-        summary_val = getattr(ar.payload, "summary", None) if ar.payload else None
+        summary_val = getattr(ar.payload, "summary", getattr(ar.payload, "note", None)) if ar.payload else None
         agent_results.append(
             AgentResultSchema(
                 agent_id=ar.agent_id.value,

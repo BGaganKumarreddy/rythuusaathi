@@ -499,10 +499,11 @@ def resolve_followup_context(
     # 2. Check for explicit overrides from user payload (highest priority)
     if overrides.get("crop"):
         res = CROP_REGISTRY.resolve(overrides["crop"])
-        if res.is_resolved:
-            canon = res.record.common_names[0].value if res.record.common_names else res.record.scientific_name
+        if res.canonical_id:
+            rec = CROP_REGISTRY.get(res.canonical_id)
+            canon = rec.common_names[0].value if rec and rec.common_names else (rec.scientific_name if rec else overrides["crop"])
             new_ctx.crop = canon.title()
-            new_ctx.crop_id = res.record.crop_id
+            new_ctx.crop_id = res.canonical_id
             confirmed_set.add("crop")
         else:
             new_ctx.crop = overrides["crop"].strip().title()
@@ -510,9 +511,10 @@ def resolve_followup_context(
 
     if overrides.get("location"):
         loc_res = LOCATION_REGISTRY.resolve(overrides["location"])
-        if loc_res.is_resolved:
-            new_ctx.location = loc_res.record.name
-            new_ctx.location_id = loc_res.record.location_id
+        if loc_res.canonical_id:
+            loc_rec = LOCATION_REGISTRY.get(loc_res.canonical_id)
+            new_ctx.location = loc_rec.display_name if loc_rec else overrides["location"]
+            new_ctx.location_id = loc_res.canonical_id
             confirmed_set.add("location")
         else:
             new_ctx.location = overrides["location"].strip().title()

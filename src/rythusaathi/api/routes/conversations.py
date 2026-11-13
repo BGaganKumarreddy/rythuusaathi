@@ -97,13 +97,23 @@ async def _execute_advisory_for_conversation(
     # Build provider-neutral inference if BYOK key is configured
     inference = None
     if mode in {WorkflowMode.CEREBRAS, WorkflowMode.GEMINI, WorkflowMode.GROQ}:
-        from ...inference.contracts import AuthenticatedCerebrasInference, AuthenticatedGeminiInference, AuthenticatedGroqInference
+        from ...agents.llm import AuthenticatedCerebrasInference, AuthenticatedGeminiInference, AuthenticatedGroqInference
         from ...inference.providers.cerebras import CerebrasProvider, CerebrasProviderConfig
         from ...inference.providers.gemini import GeminiProvider, GeminiProviderConfig
         from ...inference.providers.groq import GroqProvider, GroqProviderConfig
         from ...inference.service import AuthenticatedCerebrasService, AuthenticatedGeminiService, AuthenticatedGroqService
 
-        cid = f"cid:{uuid.uuid4().hex}"
+        prov_key = mode.value
+        statuses = credential_service.list_status(identity, provider_id=prov_key)
+        active_creds = [s for s in statuses if s.state.value == "active"]
+        if not active_creds:
+            raise APIError(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="missing_provider_credential",
+                message=f"No active BYOK credential found for provider '{prov_key}'. Please enroll your API key via BYOK Vault (/credentials).",
+            )
+
+        cid = active_creds[0].credential_id
         if mode is WorkflowMode.CEREBRAS:
             provider = CerebrasProvider(CerebrasProviderConfig.from_environment())
             service = AuthenticatedCerebrasService(auth_service, credential_service, provider)
@@ -166,7 +176,7 @@ async def _execute_advisory_for_conversation(
     background_vulnerabilities: list[RiskAlertSchema] = []
 
     for ar in response.agent_results:
-        summary_val = getattr(ar.payload, "summary", None) if ar.payload else None
+        summary_val = getattr(ar.payload, "summary", getattr(ar.payload, "note", None)) if ar.payload else None
         agent_results.append(
             AgentResultSchema(
                 agent_id=ar.agent_id.value,

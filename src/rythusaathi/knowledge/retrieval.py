@@ -86,8 +86,15 @@ class LocalKnowledgeBase:
 
 
 def _geography_applies(scopes, requested: str) -> bool:
-    if scopes is None:
+    if scopes is None or not scopes:
         return False
     if requested in scopes:
         return True
-    return ("location:country:in" in scopes and requested.startswith("location:"))
+    if "location:country:in" in scopes and requested.startswith("location:"):
+        return True
+    for s in scopes:
+        if s.startswith("location:state:") and requested.startswith("location:district:"):
+            state_code = s.split("location:state:")[-1]
+            if requested.startswith(f"location:district:{state_code}-"):
+                return True
+    return False

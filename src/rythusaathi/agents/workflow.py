@@ -1536,26 +1536,52 @@ class CropAgent(_DomainAgent):
     async def perform(self, case: AgentExecutionInput) -> _AgentWork:
         crop_id = _resolved_id(case.context.crop)
         location_id = _resolved_id(case.context.location)
-        if not crop_id or not location_id:
-            detail = "Crop and registered location are required for scoped agricultural retrieval."
+        if not crop_id:
+            detail = "Confirmed crop is required for scoped agricultural retrieval."
+            return _AgentWork(AgentStatus.SKIPPED,
+                              RetrievalPayload(0, (), (), (), detail), detail)
+
+        if case.context.location.state is FactState.UNAVAILABLE:
+            detail = "Unregistered location requires clarification before retrieving localized crop guidance."
             return _AgentWork(AgentStatus.SKIPPED,
                               RetrievalPayload(0, (), (), (), detail), detail)
 
         stage = (case.context.growth_stage.value
                  if case.context.growth_stage.state is FactState.SUPPLIED else None)
         hits: dict[str, RetrievedChunk] = {}
-        for geography in _location_scopes(location_id):
+
+        if location_id:
+            scopes = _location_scopes(location_id)
+            for geography in scopes:
+                for hit in self._knowledge.search(
+                    case.request.query,
+                    top_k=4,
+                    filters=RetrievalFilter(crop_id=crop_id, geography=geography,
+                                            growth_stage=stage),
+                ):
+                    hits.setdefault(hit.chunk.chunk_id, hit)
+        else:
+            # When location is unconfirmed, retrieve general/nationwide crop guidance
             for hit in self._knowledge.search(
                 case.request.query,
                 top_k=4,
-                filters=RetrievalFilter(crop_id=crop_id, geography=geography,
-                                        growth_stage=stage),
+                filters=RetrievalFilter(crop_id=crop_id, growth_stage=stage),
             ):
+                if hit.chunk.geographic_applicability:
+                    if "location:country:in" not in hit.chunk.geographic_applicability:
+                        continue
                 hits.setdefault(hit.chunk.chunk_id, hit)
+            if stage and not hits:
+                for hit in self._knowledge.search(case.request.query, top_k=4, filters=RetrievalFilter(crop_id=crop_id)):
+                    if hit.chunk.geographic_applicability:
+                        if "location:country:in" not in hit.chunk.geographic_applicability:
+                            continue
+                    hits.setdefault(hit.chunk.chunk_id, hit)
 
         evidence_ids: list[str] = []
         finding_ids: list[str] = []
-        for hit in sorted(hits.values(), key=lambda value: (-value.similarity, value.chunk.chunk_id)):
+        sorted_hits = sorted(hits.values(), key=lambda value: (-value.similarity, value.chunk.chunk_id))[:4]
+        for hit in sorted_hits:
             evidence = to_evidence_record(hit, request_id=case.request.request_id)
             case.board.writer_for(AgentId.CROP).publish_evidence(evidence)
             evidence_ids.append(evidence.evidence_id)
@@ -1568,12 +1594,18 @@ class CropAgent(_DomainAgent):
                 uncertainty="Source applicability is limited to its recorded crop, geographic and stage metadata.",
             ))
 
-        filters = [("crop_id", crop_id), ("geography", location_id)]
+        filters = [("crop_id", crop_id)]
+        if location_id:
+            filters.append(("geography", location_id))
         if stage:
             filters.append(("growth_stage", stage))
-        note = (f"Retrieved {len(evidence_ids)} crop-scoped source excerpt(s); this is not a diagnosis."
-                if evidence_ids else
-                "No evidence met the crop, geographic and growth-stage filters; no recommendation was inferred.")
+        if evidence_ids:
+            if location_id:
+                note = f"Retrieved {len(evidence_ids)} crop-scoped source excerpt(s); this is not a diagnosis."
+            else:
+                note = f"Retrieved {len(evidence_ids)} general crop-scoped source excerpt(s) without location refinement; this is not a diagnosis."
+        else:
+            note = "No evidence met the crop, geographic and growth-stage filters; no recommendation was inferred."
         interpretation, inference_status = await self.interpret(
             case, evidence_ids, "crop agronomy and symptom context; never diagnose disease"
         )
@@ -1888,8 +1920,8 @@ class SchemeAgent(_DomainAgent):
                 "financial assistance", "bharosa", "eligib", "support", "insurance", "application",
             ))
         )
-        if not location_id and not scheme_requested:
-            note = "Scheme lookup requires a registered location to filter state and national programs."
+        if not scheme_requested and not location_id:
+            note = "No government scheme inquiry was requested; scheme lookup is skipped."
             return _AgentWork(AgentStatus.SKIPPED,
                               RetrievalPayload(0, (), (), (), note), note)
 
@@ -2055,7 +2087,7 @@ class RiskAlertAgent(_DomainAgent):
         # 2. Disease Risks
         disease_records: list[EvidenceRecord] = []
         d_alerts: list[RiskAlertItem] = []
-        if crop_id and location_id:
+        if crop_id:
             if risk_related_query:
                 disease_hits: dict[str, RetrievedChunk] = {}
                 d_queries = [
@@ -2069,7 +2101,10 @@ class RiskAlertAgent(_DomainAgent):
                         filters=RetrievalFilter(crop_id=crop_id),
                     ):
                         if hit.chunk.geographic_applicability:
-                            if not any(scope in hit.chunk.geographic_applicability for scope in scopes):
+                            if scopes:
+                                if not any(scope in hit.chunk.geographic_applicability for scope in scopes):
+                                    continue
+                            elif "location:country:in" not in hit.chunk.geographic_applicability:
                                 continue
                         disease_hits.setdefault(hit.chunk.chunk_id, hit)
 
@@ -2087,6 +2122,9 @@ class RiskAlertAgent(_DomainAgent):
                     e for e in case.board.evidence
                     if e.crop_applicability and crop_id in e.crop_applicability
                 ]
+                for ev in disease_records:
+                    if ev.evidence_id not in evidence_ids:
+                        evidence_ids.append(ev.evidence_id)
 
             d_alerts = evaluate_disease_risks(
                 request_id=case.request.request_id,
@@ -2102,7 +2140,7 @@ class RiskAlertAgent(_DomainAgent):
         # 3. Pest Risks
         pest_records: list[EvidenceRecord] = []
         p_alerts: list[RiskAlertItem] = []
-        if crop_id and location_id:
+        if crop_id:
             if risk_related_query:
                 pest_hits: dict[str, RetrievedChunk] = {}
                 p_queries = [
@@ -2116,7 +2154,10 @@ class RiskAlertAgent(_DomainAgent):
                         filters=RetrievalFilter(crop_id=crop_id),
                     ):
                         if hit.chunk.geographic_applicability:
-                            if not any(scope in hit.chunk.geographic_applicability for scope in scopes):
+                            if scopes:
+                                if not any(scope in hit.chunk.geographic_applicability for scope in scopes):
+                                    continue
+                            elif "location:country:in" not in hit.chunk.geographic_applicability:
                                 continue
                         pest_hits.setdefault(hit.chunk.chunk_id, hit)
 
@@ -2134,6 +2175,9 @@ class RiskAlertAgent(_DomainAgent):
                     e for e in case.board.evidence
                     if e.crop_applicability and crop_id in e.crop_applicability
                 ]
+                for ev in pest_records:
+                    if ev.evidence_id not in evidence_ids:
+                        evidence_ids.append(ev.evidence_id)
 
             p_alerts = evaluate_pest_risks(
                 request_id=case.request.request_id,
@@ -2186,8 +2230,10 @@ class RiskAlertAgent(_DomainAgent):
                 + "; ".join(f"[{a.severity.value.upper()}] {a.title}" for a in active_alerts)
                 + "."
             )
-        elif not crop_id or not location_id:
-            summary = "Crop and registered location are required for evidence-backed disease and pest risk assessment."
+        elif not crop_id:
+            summary = "Crop is required for evidence-backed disease and pest risk assessment."
+        elif not location_id and not (active_alerts or background_items):
+            summary = "Location is required for agrometeorological risk assessment; crop disease and pest screening performed without location."
         elif not evidence_ids:
             summary = "No qualifying weather, disease, or pest evidence was available; zero speculative risks asserted."
         elif background_items:
@@ -2196,8 +2242,10 @@ class RiskAlertAgent(_DomainAgent):
             summary = "No active weather, disease, or pest risk thresholds exceeded based on available evidence."
 
         status = AgentStatus.COMPLETED
-        if not evidence_ids and (not crop_id or not location_id):
+        if not evidence_ids and not crop_id:
             status = AgentStatus.SKIPPED
+        elif not evidence_ids and not location_id:
+            status = AgentStatus.SKIPPED if not crop_id else AgentStatus.UNAVAILABLE
         elif not evidence_ids:
             status = AgentStatus.UNAVAILABLE
 
@@ -2296,7 +2344,9 @@ class CoordinatorAgent(Executor):
             for item in evidence:
                 if item.evidence_id in crop_evidence_ids:
                     lines.append(_format_evidence(item))
-            lines.append("These excerpts provide context only. Reported symptoms are not enough to establish a cause.")
+            has_location = case.context.location.state is FactState.SUPPLIED
+            clarify_suffix = " Local agronomic recommendations can be refined if you provide your location." if not has_location else ""
+            lines.append(f"These excerpts provide context only. Reported symptoms are not enough to establish a cause.{clarify_suffix}")
         elif crop_result:
             crop_note = crop_result.payload.note if isinstance(crop_result.payload, RetrievalPayload) else crop_result.status.value
             lines.append(f"\nAgricultural knowledge: {crop_note.rstrip('.')}.")

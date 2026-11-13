@@ -27,6 +27,20 @@ vi.mock('../services/conversationService', () => ({
 }));
 
 // Mock configService
+vi.mock('../services/credentialService', () => ({
+  credentialService: {
+    listCredentials: vi.fn().mockResolvedValue([]),
+    enrollCredential: vi.fn(),
+    deleteCredential: vi.fn(),
+  },
+  default: {
+    listCredentials: vi.fn().mockResolvedValue([]),
+    enrollCredential: vi.fn(),
+    deleteCredential: vi.fn(),
+  },
+}));
+
+// Mock configService
 vi.mock('../services/configurationService', () => ({
   configurationService: {
     getCrops: vi.fn().mockResolvedValue([
@@ -253,4 +267,127 @@ describe('Conversational Advisory Chat Tests', () => {
     fireEvent.change(cropInput, { target: { value: 'Wheat' } });
     expect(cropInput.value).toBe('Wheat');
   });
+
+  it('5. Allows changing execution mode and passes mode in createConversation', async () => {
+    conversationService.listConversations.mockResolvedValueOnce({
+      items: [],
+      total: 0,
+      limit: 50,
+      offset: 0,
+    });
+
+    const createdConv = {
+      conversation_id: 'conv-llm-1',
+      title: 'LLM Consultation',
+      messages: [
+        {
+          message_id: 'msg-u1',
+          role: 'user',
+          content: 'Hello agent',
+          created_at: new Date().toISOString(),
+        },
+        {
+          message_id: 'msg-a1',
+          role: 'assistant',
+          content: 'LLM response synthesized',
+          created_at: new Date().toISOString(),
+        },
+      ],
+    };
+    conversationService.createConversation.mockResolvedValueOnce(createdConv);
+
+    renderComponent();
+
+    const modeSelect = screen.getByTestId('execution-mode-select');
+    expect(modeSelect.value).toBe('deterministic');
+
+    fireEvent.change(modeSelect, { target: { value: 'groq' } });
+    expect(modeSelect.value).toBe('groq');
+
+    const textarea = screen.getByPlaceholderText(/Ask about crop health, weather/i);
+    fireEvent.change(textarea, { target: { value: 'Hello agent' } });
+
+    const sendBtn = screen.getByRole('button', { name: /Send/i });
+    fireEvent.click(sendBtn);
+
+    await waitFor(() => {
+      expect(conversationService.createConversation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          initial_message: 'Hello agent',
+          mode: 'groq',
+        })
+      );
+    });
+  });
+
+  it('6. Renders specialist agent summary and skip reasons in telemetry drawer', async () => {
+    const mockConv = {
+      conversation_id: 'conv-telemetry-1',
+      title: 'Telemetry test',
+      messages: [
+        {
+          message_id: 'msg-u1',
+          role: 'user',
+          content: 'Rice brown spots',
+          created_at: new Date().toISOString(),
+        },
+        {
+          message_id: 'msg-a1',
+          role: 'assistant',
+          content: 'Advisory recommendations',
+          agent_telemetry: [
+            {
+              agent_id: 'Crop',
+              status: 'completed',
+              duration_ms: 22,
+              summary: 'Retrieved 2 general crop-scoped source excerpt(s) without location refinement.',
+            },
+            {
+              agent_id: 'Weather',
+              status: 'skipped',
+              duration_ms: 1,
+              summary: 'Weather lookup requires a registered location; none was supplied.',
+            },
+            {
+              agent_id: 'Scheme',
+              status: 'skipped',
+              duration_ms: 1,
+              summary: 'No government scheme inquiry was requested; scheme lookup is skipped.',
+            },
+          ],
+          created_at: new Date().toISOString(),
+        },
+      ],
+    };
+
+    conversationService.listConversations.mockResolvedValueOnce({
+      items: [{ conversation_id: 'conv-telemetry-1', title: 'Telemetry test', message_count: 2 }],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    });
+    conversationService.getConversation.mockResolvedValueOnce(mockConv);
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Advisory recommendations/i)).toBeInTheDocument();
+    });
+
+    const accordionBtn = screen.getByRole('button', { name: /7-Agent Telemetry & Execution Trace/i });
+    fireEvent.click(accordionBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Retrieved 2 general crop-scoped source excerpt\(s\) without location refinement/i)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Weather lookup requires a registered location; none was supplied/i)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/No government scheme inquiry was requested; scheme lookup is skipped/i)
+      ).toBeInTheDocument();
+    });
+  });
 });
+

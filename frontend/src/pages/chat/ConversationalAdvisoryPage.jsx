@@ -30,6 +30,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { conversationService } from '../../services/conversationService';
+import { credentialService } from '../../services/credentialService';
 import { useConfig } from '../../context/ConfigContext';
 import { useToast } from '../../context/ToastContext';
 import { Badge } from '../../components/ui/Badge';
@@ -77,6 +78,10 @@ export const ConversationalAdvisoryPage = () => {
   const [isSending, setIsSending] = useState(false);
   const [sendStep, setSendStep] = useState(0);
 
+  // Execution mode & active provider credentials
+  const [executionMode, setExecutionMode] = useState('deterministic');
+  const [activeCredentials, setActiveCredentials] = useState([]);
+
   // Manual parameter drawer / overrides
   const [showParamDrawer, setShowParamDrawer] = useState(false);
   const [overrideCrop, setOverrideCrop] = useState('');
@@ -99,6 +104,18 @@ export const ConversationalAdvisoryPage = () => {
   useEffect(() => {
     scrollToBottom();
   }, [activeConversation?.messages, isSending]);
+
+  // Load available active BYOK credentials
+  useEffect(() => {
+    credentialService
+      .listCredentials()
+      .then((creds) => {
+        if (Array.isArray(creds)) {
+          setActiveCredentials(creds.filter((c) => c.state === 'active'));
+        }
+      })
+      .catch((err) => console.warn('Could not list credentials:', err));
+  }, []);
 
   // Load conversation list on mount
   useEffect(() => {
@@ -198,6 +215,7 @@ export const ConversationalAdvisoryPage = () => {
         // Create new conversation with initial message
         const newConv = await conversationService.createConversation({
           initial_message: textToSend,
+          mode: executionMode,
           crop: overrideCrop.trim() || undefined,
           location: overrideLocation.trim() || undefined,
           growth_stage: overrideStage.trim() || undefined,
@@ -239,6 +257,7 @@ export const ConversationalAdvisoryPage = () => {
           activeConversation.conversation_id,
           {
             content: textToSend,
+            mode: executionMode,
             crop: overrideCrop.trim() || undefined,
             location: overrideLocation.trim() || undefined,
             growth_stage: overrideStage.trim() || undefined,
@@ -274,7 +293,18 @@ export const ConversationalAdvisoryPage = () => {
       clearInterval(stepInterval);
       setIsSending(false);
       console.error('Error sending message:', err);
-      toast.error(err?.message || 'Failed to generate advisory response');
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to generate advisory response';
+      const errCode = err?.response?.data?.code || err?.code;
+      if (errCode === 'missing_provider_credential' || errMsg.includes('BYOK') || errMsg.includes('missing_provider_credential')) {
+        toast.error(errMsg, 'Missing Provider Credential', {
+          action: {
+            label: 'Open Vault',
+            onClick: () => navigate('/credentials'),
+          },
+        });
+      } else {
+        toast.error(errMsg);
+      }
     }
   };
 
@@ -415,6 +445,24 @@ export const ConversationalAdvisoryPage = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-[#F7F8F4] px-2.5 py-1.5 rounded-xl border border-[#E6EAE4]">
+              <Cpu className="w-3.5 h-3.5 text-[#347A50]" />
+              <label htmlFor="execution-mode-select" className="sr-only">
+                Execution Mode
+              </label>
+              <select
+                id="execution-mode-select"
+                data-testid="execution-mode-select"
+                value={executionMode}
+                onChange={(e) => setExecutionMode(e.target.value)}
+                className="bg-transparent text-xs font-bold text-[#183D2B] focus:outline-hidden cursor-pointer"
+              >
+                <option value="deterministic">Deterministic Baseline</option>
+                <option value="groq">Groq Cloud LPU</option>
+                <option value="cerebras">Cerebras Wafer-Scale</option>
+                <option value="gemini">Google Gemini AI Studio</option>
+              </select>
+            </div>
             <Button
               size="sm"
               variant={showParamDrawer ? 'primary' : 'outline'}
@@ -694,17 +742,27 @@ export const ConversationalAdvisoryPage = () => {
                                 {msg.agent_telemetry.map((ar, arIdx) => (
                                   <div
                                     key={arIdx}
-                                    className="p-2.5 rounded-xl bg-white border border-[#E6EAE4] text-xs flex items-center justify-between gap-2"
+                                    className="p-2.5 rounded-xl bg-white border border-[#E6EAE4] text-xs space-y-1.5"
                                   >
-                                    <div className="min-w-0">
-                                      <p className="font-bold text-[#202B24] truncate">
-                                        {ar.agent_id}
-                                      </p>
-                                      <p className="text-[10px] text-[#78837B]">
-                                        {ar.duration_ms}ms • {ar.model_id || 'heuristic'}
-                                      </p>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-[#202B24] truncate">
+                                          {ar.agent_id}
+                                        </p>
+                                        <p className="text-[10px] text-[#78837B]">
+                                          {ar.duration_ms}ms • {ar.model_id || 'heuristic'}
+                                        </p>
+                                      </div>
+                                      <div>{getAgentStatusBadge(ar.status)}</div>
                                     </div>
-                                    <div>{getAgentStatusBadge(ar.status)}</div>
+                                    {ar.summary && (
+                                      <p
+                                        className="text-[11px] text-[#556057] bg-[#F7F8F4] p-1.5 rounded-lg border border-[#E6EAE4]/60 leading-relaxed break-words"
+                                        data-testid={`telemetry-summary-${ar.agent_id.toLowerCase()}`}
+                                      >
+                                        {ar.summary}
+                                      </p>
+                                    )}
                                   </div>
                                 ))}
                               </div>
