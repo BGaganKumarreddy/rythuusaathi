@@ -244,19 +244,37 @@ async def create_advisory(
                     )
                 )
 
-    # Categorize evidence
+    # Categorize evidence using agent evidence_ids and source identities
     all_evidence = [_to_evidence_schema(e) for e in response.evidence]
     weather_ev: list[EvidenceItemSchema] = []
     market_ev: list[EvidenceItemSchema] = []
     scheme_ev: list[EvidenceItemSchema] = []
 
+    weather_ids = set()
+    market_ids = set()
+    scheme_ids = set()
+    for ar in response.agent_results:
+        if ar.agent_id == AgentId.WEATHER:
+            weather_ids.update(ar.evidence_ids)
+        elif ar.agent_id == AgentId.MARKET:
+            market_ids.update(ar.evidence_ids)
+        elif ar.agent_id == AgentId.SCHEME:
+            scheme_ids.update(ar.evidence_ids)
+
     for ev_item in all_evidence:
         sid = ev_item.source_id.lower()
-        if "open-meteo" in sid or "weather" in sid:
+        if ev_item.evidence_id in weather_ids or "open-meteo" in sid or "weather" in sid:
             weather_ev.append(ev_item)
-        elif "data-gov-in" in sid or "market" in sid:
+        elif ev_item.evidence_id in market_ids or "data-gov-in" in sid or "market" in sid:
             market_ev.append(ev_item)
-        elif "pm-kisan" in sid or "pmfby" in sid or "scheme" in sid:
+        elif (
+            ev_item.evidence_id in scheme_ids
+            or "pm-kisan" in sid
+            or "pmfby" in sid
+            or "scheme" in sid
+            or "bharosa" in sid
+            or "rythu" in sid
+        ):
             scheme_ev.append(ev_item)
 
     next_steps = _extract_next_steps(response.response_text)

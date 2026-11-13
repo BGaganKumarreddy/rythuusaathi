@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import json
 import logging
@@ -150,7 +151,7 @@ class OpenMeteoWeatherProvider:
             coord = (lat, lon, tz)
             self._geocoding_cache[cache_key] = coord
             return coord
-        except (httpx.TimeoutException, httpx.HTTPError, KeyError, ValueError, json.JSONDecodeError) as exc:
+        except (httpx.TimeoutException, httpx.HTTPError, asyncio.TimeoutError, KeyError, ValueError, json.JSONDecodeError, Exception) as exc:
             logger.warning("Geocoding failed for %s (%s): %s", location_name, type(exc).__name__, exc)
             return None
         finally:
@@ -220,9 +221,25 @@ class OpenMeteoWeatherProvider:
                 "timezone": tz,
                 "forecast_days": 3,
             }
-            resp = await client.get(self._forecast_url, params=params)
-            if resp.status_code != 200:
-                logger.warning("Open-Meteo forecast returned HTTP %d for lat=%f lon=%f", resp.status_code, lat, lon)
+            resp = None
+            for attempt in range(2):
+                try:
+                    resp = await client.get(self._forecast_url, params=params)
+                    if resp.status_code == 200:
+                        break
+                    elif resp.status_code >= 500 and attempt == 0:
+                        await asyncio.sleep(0.5)
+                        continue
+                    else:
+                        logger.warning("Open-Meteo forecast returned HTTP %d for lat=%f lon=%f", resp.status_code, lat, lon)
+                        return None
+                except (httpx.TimeoutException, httpx.NetworkError):
+                    if attempt == 0:
+                        await asyncio.sleep(0.5)
+                        continue
+                    raise
+
+            if resp is None or resp.status_code != 200:
                 return None
             data = resp.json()
             current = data.get("current")
@@ -303,7 +320,7 @@ class OpenMeteoWeatherProvider:
                 weather_condition=weather_condition,
                 forecast_summary=forecast_summary,
             )
-        except (httpx.TimeoutException, httpx.HTTPError, KeyError, ValueError, json.JSONDecodeError) as exc:
+        except (httpx.TimeoutException, httpx.HTTPError, asyncio.TimeoutError, KeyError, ValueError, json.JSONDecodeError, Exception) as exc:
             logger.warning("Open-Meteo observation failed for location %s: %s", location_id, exc)
             return None
         finally:

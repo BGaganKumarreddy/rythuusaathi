@@ -5,8 +5,8 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4-38B2AC.svg)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/backend%20tests-489%20passed-brightgreen.svg)]()
-[![Frontend Tests](https://img.shields.io/badge/frontend%20tests-20%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/backend%20tests-512%20passed-brightgreen.svg)]()
+[![Frontend Tests](https://img.shields.io/badge/frontend%20tests-24%20passed-brightgreen.svg)]()
 
 > **RythuSaathi** (*Farmer's Companion*) is an academic, production-grade agricultural multi-agent AI system with a modern React SaaS frontend. It delivers verified, multi-domain agronomic intelligence—integrating real-time weather observations, localized crop protection guidelines, official mandi commodity prices, and government welfare schemes—grounded in scientific research to eliminate model hallucinations.
 
@@ -22,12 +22,13 @@ Smallholder farmers frequently face fragmented, conflicting, and unverified agri
 
 ## 2. Core Features
 
+- **Multi-Turn Conversational Assistant**: Natural dialogue with persistent multi-turn context retention, explicit correction handling, and interactive follow-up questions.
 - **Seven-Agent Orchestrated Graph**: Specialized domain agents execute collaboratively to validate agricultural inquiries.
 - **Evidence-Grounded RAG**: Curated ICAR (*Indian Council of Agricultural Research*) scientific guidelines and central government scheme documentation.
 - **Dual-Tier Risk Alerting**: Clear distinction between **active, evidence-backed hazards** (e.g. excess rainfall within 48h) and **background crop vulnerabilities** (e.g. general pest susceptibility).
 - **Zero-Trust BYOK Security**: Bring-Your-Own-Key model with AES-256-GCM envelope encryption backed by Windows Credential Manager.
 - **Provider-Neutral LLM Engine**: Seamless execution across **Cerebras** (wafer-scale engine, 30k TPM), **Google Gemini**, **Groq** (LPU), and an offline **Deterministic Baseline**.
-- **Modern React SaaS Frontend**: Forest-green agricultural dashboard with real-time agent execution visualization, interactive next steps, and evidence traceability.
+- **Modern React SaaS Frontend**: Conversational chatbot UI and agricultural dashboard with real-time agent execution visualization, interactive next steps, and evidence traceability.
 - **Production REST API**: Local-first FastAPI service with interactive OpenAPI docs, SQLite WAL persistence, and strict tenant/user isolation.
 
 ---
@@ -173,7 +174,7 @@ uv run python scripts/byok_cli.py list
 Both backend and frontend maintain comprehensive unit, integration, and security regression test suites:
 
 ```powershell
-# 1. Run the Frontend Vitest Suite (20 tests)
+# 1. Run the Frontend Vitest Suite (24 tests)
 cd frontend
 npm run test
 npm run build
@@ -182,10 +183,10 @@ cd ..
 # 2. Run the Backend FastAPI API & Security Tests (27 tests)
 uv run python -m pytest tests/test_api.py -v
 
-# 3. Run the Full Backend Test Suite (489 tests)
+# 3. Run the Full Backend Test Suite (512 tests)
 uv run python -m pytest -q
 ```
-*Current test status: **489 backend tests passing**, **20 frontend tests passing**, 0 warnings.*
+*Current test status: **512 backend tests passing**, **24 frontend tests passing**, 0 warnings.*
 
 ---
 
@@ -199,7 +200,8 @@ rythusaathi/
 ├── docs/                         # Architecture, audit reports, and handover guides
 │   ├── FRONTEND_API_HANDOVER.md  # Complete REST API specification for React frontend
 │   ├── PHASE_7_SECURITY_AUDIT.md # Security audit and vulnerability verification report
-│   └── PHASE_8_FRONTEND_REPORT.md# Frontend implementation and verification report
+│   ├── PHASE_8_FRONTEND_REPORT.md# Frontend implementation and verification report
+│   └── PHASE_9_CONVERSATIONAL_AI_REPORT.md # Conversational AI & integration repair report
 ├── frontend/                     # Modern React 19 + Tailwind CSS SaaS Frontend
 │   ├── src/
 │   │   ├── components/           # UI design system, layout, and advisory panels

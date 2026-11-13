@@ -13,6 +13,15 @@ from .advisory import (
 )
 from .configuration import CropSchema, LocationSchema, ProviderSchema
 from .history import HistoryItemSchema, HistoryListResponse
+from .conversations import (
+    ContextStateSchema,
+    ConversationDetailSchema,
+    ConversationListResponse,
+    ConversationMessageSchema,
+    ConversationSummarySchema,
+    CreateConversationRequest,
+    SendMessageRequest,
+)
 
 __all__ = [
     "APIErrorDetail",
@@ -20,6 +29,12 @@ __all__ = [
     "AdvisoryResponseSchema",
     "AdvisoryTraceResponse",
     "AgentResultSchema",
+    "ContextStateSchema",
+    "ConversationDetailSchema",
+    "ConversationListResponse",
+    "ConversationMessageSchema",
+    "ConversationSummarySchema",
+    "CreateConversationRequest",
     "CreateCredentialRequest",
     "CredentialListResponse",
     "CredentialResponse",
@@ -34,6 +49,7 @@ __all__ = [
     "RegisterRequest",
     "RegisterResponse",
     "RiskAlertSchema",
+    "SendMessageRequest",
     "SuccessResponse",
     "UserResponse",
 ]

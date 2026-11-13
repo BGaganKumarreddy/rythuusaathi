@@ -11,6 +11,7 @@ from .routes import (
     advisory_router,
     auth_router,
     configuration_router,
+    conversations_router,
     credentials_router,
     history_router,
 )
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(credentials_router, prefix=api_v1_prefix)
     app.include_router(advisory_router, prefix=api_v1_prefix)
     app.include_router(configuration_router, prefix=api_v1_prefix)
+    app.include_router(conversations_router, prefix=api_v1_prefix)
     app.include_router(history_router, prefix=api_v1_prefix)
     app.include_router(admin_router, prefix=api_v1_prefix)
 

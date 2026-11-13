@@ -10,6 +10,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { ConversationalAdvisoryPage } from './pages/chat/ConversationalAdvisoryPage';
 import { NewAdvisoryPage } from './pages/advisory/NewAdvisoryPage';
 import { AdvisoryResultsPage } from './pages/advisory/AdvisoryResultsPage';
 import { HistoryPage } from './pages/history/HistoryPage';
@@ -144,7 +145,9 @@ export const App = () => {
                 }
               >
                 <Route index element={<DashboardPage />} />
-                <Route path="advisories/new" element={<NewAdvisoryPage />} />
+                <Route path="chat" element={<ConversationalAdvisoryPage />} />
+                <Route path="advisories/new" element={<ConversationalAdvisoryPage />} />
+                <Route path="advisories/form" element={<NewAdvisoryPage />} />
                 <Route path="advisories/:advisoryId" element={<AdvisoryResultsPage />} />
                 <Route path="advisories" element={<HistoryPage />} />
                 <Route path="history" element={<HistoryPage />} />

@@ -33,6 +33,7 @@ from ..local_auth import LocalAuthentication
 from ..security import IdentityRole, VerifiedIdentity
 from .exceptions import APIError
 from .history import AdvisoryHistoryStore
+from .conversations import ConversationStore
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -58,6 +59,7 @@ class InMemoryKeyStore:
 _AUTH_SERVICE: LocalAuthentication | None = None
 _CREDENTIAL_SERVICE: CredentialService | None = None
 _HISTORY_STORE: AdvisoryHistoryStore | None = None
+_CONVERSATION_STORE: ConversationStore | None = None
 _KNOWLEDGE_BASE: LocalKnowledgeBase | None = None
 _KEY_STORE: KeyEncryptionInterface | None = None
 
@@ -146,6 +148,19 @@ def get_history_store() -> AdvisoryHistoryStore:
 def set_history_store(store: AdvisoryHistoryStore | None) -> None:
     global _HISTORY_STORE
     _HISTORY_STORE = store
+
+
+def get_conversation_store() -> ConversationStore:
+    global _CONVERSATION_STORE
+    if _CONVERSATION_STORE is None:
+        db_path = get_history_db_path()
+        _CONVERSATION_STORE = ConversationStore(db_path)
+    return _CONVERSATION_STORE
+
+
+def set_conversation_store(store: ConversationStore | None) -> None:
+    global _CONVERSATION_STORE
+    _CONVERSATION_STORE = store
 
 
 def get_knowledge_base() -> LocalKnowledgeBase:

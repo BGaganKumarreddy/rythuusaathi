@@ -97,7 +97,7 @@ class LocationRegistryTests(unittest.TestCase):
         self.assertEqual(LOCATION_REGISTRY.resolve(
             "Nalgonda", parent_id="location:state:in-tg", level=RegistryLevel.DISTRICT
         ).canonical_id, "location:district:in-tg-nalgonda")
-        self.assertIsNone(LOCATION_REGISTRY.get("location:district:in-tg-nalgonda").latitude)
+        self.assertEqual(LOCATION_REGISTRY.get("location:district:in-tg-nalgonda").latitude, 17.0577)
         self.assertEqual(len(LOCATION_REGISTRY.children("location:state:in-tg")), 2)
         self.assertEqual(LOCATION_REGISTRY.resolve("Adilabad").canonical_id,
                          "location:district:in-tg-adilabad")

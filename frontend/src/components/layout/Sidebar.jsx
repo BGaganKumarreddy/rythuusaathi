@@ -33,7 +33,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
   const primaryNavItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/advisories/new', label: 'New Consultation', icon: Sparkles, highlight: true },
+    { to: '/chat', label: 'AI Advisory Chat', icon: Sparkles, highlight: true },
     { to: '/history', label: 'My Consultations', icon: FileText },
     { to: '/farm-profile', label: 'Farm Profile', icon: UserCheck },
     { to: '/settings', label: 'Account Settings', icon: Settings },
@@ -76,7 +76,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       {/* Primary Action Button */}
       <div className="px-5 pt-5 pb-2">
         <NavLink
-          to="/advisories/new"
+          to="/chat"
           onClick={onClose}
           className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-[#347A50] hover:bg-[#429563] text-white font-medium text-sm transition-all shadow-md shadow-emerald-950/30 group"
         >
